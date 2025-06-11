@@ -1,0 +1,1 @@
+python setup.py install 将sampler_core.cpp安装上
