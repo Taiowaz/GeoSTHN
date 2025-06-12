@@ -305,13 +305,34 @@ def get_subgraph_sampler(args, g, df, mode):
 def pre_compute_subgraphs(
     args, g, df, mode, negative_sampler=None, split_mode="test", cache=True
 ):
+    """
+    预计算子图并在可能的情况下缓存结果。
+
+    参数:
+    args (Namespace): 包含各种配置参数的命名空间对象。
+    g (dict): 图数据，包含邻接表、边信息等。
+    df (DataFrame): 包含图的边信息的 Pandas 数据框。
+    mode (str): 模式，可选值为 "train", "valid", "test"。
+    negative_sampler (object, 可选): 负样本采样器，默认为 None。
+    split_mode (str, 可选): 分割模式，默认为 "test"。
+    cache (bool, 可选): 是否缓存预计算的子图，默认为 True。
+
+    返回:
+    tuple: 包含预计算的子图列表和对应的边标签列表的元组。
+    (all_subgraphs, all_elabel)
+    all_subgraphs: [[batch_size*extra_neg_samples], (len(loader)//batch_size)]
+    all_elabel: [[batch_size],(len(loader)//batch_size)]
+    """
     ###################################################
-    # get cached file_name
+    # 获取缓存文件名
     if mode == "train":
+        # 训练模式使用额外的负样本数量
         extra_neg_samples = args.extra_neg_samples
     else:
+        # 验证和测试模式使用 1 个负样本
         extra_neg_samples = 1
 
+    # 构建缓存文件的路径
     fn = os.path.join(
         os.getcwd(),
         "tgb/DATA",
@@ -327,19 +348,21 @@ def pre_compute_subgraphs(
     )
     ###################################################
 
-    # # try:
+    # 检查缓存文件是否存在
     if os.path.exists(fn):
+        # 若存在，则加载缓存的子图和边标签
         subgraph_elabel = pickle.load(open(fn, "rb"))
-        logging.info(f"Successfully load subgraphs to {fn}")
+        logging.info(f"Successfully load subgraphs from {fn}")
 
     else:
         ##################################################
-        # for each node, sample its neighbors with the most recent neighbors (sorted)
+        # 为每个节点采样最近邻节点（按时间排序）
         logging.info(f"Sample subgraphs ... for {mode} mode")
+        # 获取并行采样器和负链接采样器
         sampler, neg_link_sampler = get_parallel_sampler(g, args.num_neighbors)
 
         ###################################################
-        # setup modes
+        # 根据不同模式设置当前数据框
         if mode == "train":
             cur_df = df[args.train_mask]
 
@@ -349,16 +372,20 @@ def pre_compute_subgraphs(
         elif mode == "test":
             cur_df = df[args.test_mask]
 
+        # 按批次大小对数据框进行分组
         loader = cur_df.groupby(cur_df.index // args.batch_size)
+        # 初始化进度条
         pbar = tqdm(total=len(loader))
         pbar.set_description("Pre-sampling: %s mode" % (mode,))
 
         ###################################################
+        # 初始化存储所有子图和边标签的列表
         all_subgraphs = []
         all_elabel = []
+        # 重置采样器
         sampler.reset()
         for _, rows in loader:
-
+            # 如果提供了负样本采样器，则使用它进行负样本采样
             if negative_sampler is not None:
                 neg_batch_list = negative_sampler.query_batch(
                     rows.src.values,
@@ -368,32 +395,42 @@ def pre_compute_subgraphs(
                     split_mode=split_mode,
                 )
                 neg_batch_list = np.concatenate(neg_batch_list)
+                # 计算额外负样本的数量
                 extra_neg_samples = neg_batch_list.shape[0] // len(rows)
             else:
+                # 否则使用负链接采样器进行采样
                 neg_batch_list = neg_link_sampler.sample(len(rows) * extra_neg_samples)
 
+            # 拼接源节点、目标节点和负样本节点
             root_nodes = np.concatenate(
                 [rows.src.values, rows.dst.values, neg_batch_list]
             ).astype(np.int32)
 
-            # time-stamp for node = edge time-stamp
+            # 节点的时间戳等于边的时间戳
             ts = np.tile(rows.time.values, extra_neg_samples + 2).astype(np.float32)
+            # 记录当前批次的边标签
             all_elabel.append(rows.label.values)
+            # 为根节点采样子图并添加到列表中
             all_subgraphs.append(
                 get_mini_batch(sampler, root_nodes, ts, args.sampled_num_hops)
             )
 
+            # 更新进度条
             pbar.update(1)
+        # 关闭进度条
         pbar.close()
+        # 将子图列表和边标签列表打包成元组
         subgraph_elabel = (all_subgraphs, all_elabel)
 
         if cache:
             try:
+                # 将子图和边标签缓存到文件中
                 pickle.dump(
                     subgraph_elabel, open(fn, "wb"), protocol=pickle.HIGHEST_PROTOCOL
                 )
                 logging.info(f"Successfully cached subgraphs to {fn}")
             except Exception as e:
+                # 记录缓存失败的错误信息
                 logging.error(f"Failed to cache subgraphs: {e}")
                 # 根据需求决定是否继续执行
                 # raise  # 如果缓存失败需要中断，可以取消注释
