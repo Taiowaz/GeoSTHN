@@ -1,0 +1,21 @@
+# IDE settings
+.vscode
+
+# Analysis and temporary files
+analyze
+exper/*
+temp
+tgb/DATA/*
+
+# Log files
+run.log
+run.pid
+
+# Build files
+build
+dist
+LLM_CDHG.egg-info
+*.so
+
+# Python files
+__pycache__/

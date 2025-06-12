@@ -15,7 +15,7 @@ def load_model(args):
             from src.model.sthn import Multiclass_Interface as STHN_Interface
         else:
             from src.model.sthn import STHN_Interface
-        from src.model.sthn import link_pred_train
+        from src.utils.link_pred_train_utils import link_pred_train
 
         mixer_configs = {
             "per_graph_size": args.max_edges,

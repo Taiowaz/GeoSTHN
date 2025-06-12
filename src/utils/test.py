@@ -1,7 +1,8 @@
 import torch
 import numpy as np
 from tqdm import tqdm
-from src.model.sthn import pre_compute_subgraphs, get_inputs_for_ind
+from src.utils.construct_subgraph import pre_compute_subgraphs
+from src.utils.link_pred_train_utils import get_inputs_for_ind
 from tgb.linkproppred.evaluate import Evaluator
 import logging
 from sklearn.metrics import roc_auc_score, average_precision_score

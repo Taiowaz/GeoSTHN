@@ -6,7 +6,7 @@ from tgb.linkproppred.dataset_pyg import PyGLinkPropPredDataset
 import torch
 import logging
 
-from src.model.sthn import check_data_leakage
+from src.utils.construct_subgraph import check_data_leakage
 
 
 def load_graph(data):
