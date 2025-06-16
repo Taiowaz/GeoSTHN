@@ -4,6 +4,7 @@ URL: https://github.com/celi52/STHN/blob/main/link_pred_train_utils.py
 
 Notes: I created a separate function for get_inputs_for_ind so that we can use it for TGB evaluation as well
 """
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,14 +17,19 @@ import logging
 from tqdm import tqdm
 
 
-
 import time
 import copy
 from torch_sparse import SparseTensor
 from torchmetrics.classification import MulticlassAUROC, MulticlassAveragePrecision
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from sklearn.preprocessing import MinMaxScaler
-from src.utils.construct_subgraph import get_random_inds,get_all_inds,construct_mini_batch_giant_graph,get_subgraph_sampler,pre_compute_subgraphs
+from src.utils.construct_subgraph import (
+    get_random_inds,
+    get_all_inds,
+    construct_mini_batch_giant_graph,
+    get_subgraph_sampler,
+    pre_compute_subgraphs,
+)
 from src.utils.utils import row_norm
 
 
@@ -178,6 +184,8 @@ def run(
         )
 
         start_time = time.time()
+        # 将inputs, neg_samples, subgraph_node_feats转为张量
+
         loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
         if mode == "train" and optimizer != None:
             optimizer.zero_grad()
@@ -350,4 +358,3 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
         i += len(_root_ind) // num_duplicate
 
     return output_feats
-

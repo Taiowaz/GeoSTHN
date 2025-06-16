@@ -5,7 +5,9 @@ import os
 def get_args(args=None):
     parser = argparse.ArgumentParser()
     # experiments
-    parser.add_argument("--exper_name", type=str, default="exper-thgl-software-subset-debug")
+    parser.add_argument(
+        "--exper_name", type=str, default="exper-thgl-software-subset-debug"
+    )
     parser.add_argument("--exper_base_dir", type=str, default="exper")
     parser.add_argument("--num_epoch", type=int, default=1)
     parser.add_argument("--seed", type=int, help="Random seed", default=1)
@@ -15,7 +17,12 @@ def get_args(args=None):
 
     # basic
     parser.add_argument("--dataset", type=str, default="thgl-software-subset")
-    parser.add_argument("--device", type=int, default=-1, help="GPU device ID (-1 for all available GPUs)")
+    parser.add_argument(
+        "--device",
+        type=int,
+        default=-1,
+        help="GPU device ID (-1 for all available GPUs)",
+    )
     parser.add_argument("--batch_size", type=int, default=600)
     parser.add_argument("--max_edges", type=int, default=50)
     parser.add_argument("--num_edgeType", type=int, default=0, help="num of edgeType")
@@ -31,7 +38,7 @@ def get_args(args=None):
     parser.add_argument("--extra_neg_samples", type=int, default=5)
     parser.add_argument("--num_neighbors", type=int, default=50)
     parser.add_argument("--channel_expansion_factor", type=int, default=2)
-    parser.add_argument("--sampled_num_hops", type=int, default=1)
+    parser.add_argument("--sampled_num_hops", type=int, default=5)
     parser.add_argument("--time_dims", type=int, default=100)
     parser.add_argument("--hidden_dims", type=int, default=100)
     parser.add_argument("--num_layers", type=int, default=1)

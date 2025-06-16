@@ -5,7 +5,7 @@ import pytz
 from datetime import datetime
 
 # 设置时区为中国时区
-china_tz = pytz.timezone('Asia/Shanghai')
+china_tz = pytz.timezone("Asia/Shanghai")
 
 # 避免内存碎片化
 # 当需要分配大于 128MB 的内存块时，尽量将请求拆分成更小的块（最大 128MB）
@@ -43,7 +43,7 @@ def main():
     result_filename = f"{result_dir}/{args.model}_{args.dataset}_results.json"
     # 创建目录
     os.makedirs(exper_dir, exist_ok=True)
-    os.makedirs(exper_time_dir,exist_ok=True)
+    os.makedirs(exper_time_dir, exist_ok=True)
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(result_dir, exist_ok=True)
 
@@ -124,10 +124,17 @@ def main():
 
         # 保存训练好的模型
         if args.num_gpus > 1:
-            torch.save(model.module.state_dict(), os.path.join(save_model_dir, f"{save_model_id}.pt"))
+            torch.save(
+                model.module.state_dict(),
+                os.path.join(save_model_dir, f"{save_model_id}.pt"),
+            )
         else:
-            torch.save(model.state_dict(), os.path.join(save_model_dir, f"{save_model_id}.pt"))
-        logging.info(f"模型已保存到: {os.path.join(save_model_dir, f'{save_model_id}.pt')}")
+            torch.save(
+                model.state_dict(), os.path.join(save_model_dir, f"{save_model_id}.pt")
+            )
+        logging.info(
+            f"模型已保存到: {os.path.join(save_model_dir, f'{save_model_id}.pt')}"
+        )
 
         dataset.load_val_ns()
 
