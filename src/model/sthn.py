@@ -656,7 +656,7 @@ class Patch_Encoding(nn.Module):
             (batch_size * self.per_graph_size, edge_time_feats.size(1)),
             device=edge_feats.device,
         )
-        # 将编码后的边时间特征累加到对应索引位置
+        # 将编码后的边时间特征累加到对应索引位置，对应节点上
         x[inds] = x[inds] + edge_time_feats
         # 调整张量形状，将其分割为多个窗口
         x = x.view(
