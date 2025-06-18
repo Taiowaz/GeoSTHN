@@ -64,11 +64,11 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
 
             # Forward pass
             loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
-
+            split = len(pred) // 2
             # Prepare evaluation input
             input_dict = {
-                "y_pred_pos": np.array([pred.cpu()[0].numpy()]),
-                "y_pred_neg": np.array(pred.cpu()[1:].numpy()),
+                "y_pred_pos": np.array(pred.cpu()[:split].numpy()),
+                "y_pred_neg": np.array(pred.cpu()[split:].numpy()),
                 "eval_metric": [metric],
             }
 
