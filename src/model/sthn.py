@@ -635,23 +635,46 @@ class Patch_Encoding(nn.Module):
         self.mlp_head.reset_parameters()
 
     def forward(self, edge_feats, edge_ts, batch_size, inds):
+        """
+        前向传播方法，处理输入的边特征和时间戳，生成最终的特征表示。
+
+        Args:
+            edge_feats (torch.Tensor):  形状为[num_edges, edge_feature_dim]的边特征张量
+            edge_ts (torch.Tensor): 形状为[num_edges]的时间差张量
+            batch_size (int): 标量整数，表示子图数量，batch_size指的是原batch_szie*(源节点+目的节点+负采样节点)
+            inds (torch.Tensor): 形状为[num_valid_edges]的索引张量
+
+        Returns:
+            torch.Tensor: 经过处理后的特征张量。生成所有节点的特征表示
+        """
         # x : [ batch_size, graph_size, edge_dims+time_dims]
+        # 使用特征编码器对边特征和时间戳进行编码
         edge_time_feats = self.feat_encoder(edge_feats, edge_ts)
+        # 初始化一个全零张量，用于存储处理后的特征
+        # 每per_graph_size为一个子图
         x = torch.zeros(
             (batch_size * self.per_graph_size, edge_time_feats.size(1)),
             device=edge_feats.device,
         )
+        # 将编码后的边时间特征累加到对应索引位置
         x[inds] = x[inds] + edge_time_feats
+        # 调整张量形状，将其分割为多个窗口
         x = x.view(
             -1, self.per_graph_size // self.window_size, self.window_size * x.shape[-1]
         )
+        # 使用投影层对窗口特征进行投影
         x = self.pad_projector(x)
+        # 添加一维位置编码
         x = self.p_enc_1d_model_sum(x)
+        # 遍历所有的混合块，对特征进行处理
         for i in range(self.num_layers):
-            # apply to channel + feat dim
+            # 对通道和特征维度应用混合块
             x = self.mixer_blocks[i](x)
+        # 使用层归一化处理特征
         x = self.layernorm(x)
+        # 对特征在维度1上求均值
         x = torch.mean(x, dim=1)
+        # 使用全连接层生成最终的特征表示
         x = self.mlp_head(x)
         return x
 

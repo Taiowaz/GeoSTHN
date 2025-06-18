@@ -14,6 +14,7 @@ from sampler_core import ParallelSampler
 import os
 import pickle
 
+
 # get sampler
 class NegLinkSampler:
     """
@@ -146,6 +147,7 @@ def construct_mini_batch_giant_graph(all_graphs, max_num_edges):
     """
     Take the subgraph computed by fetch_subgraph() and combine it into a giant graph
     Return: the new indices of the graph
+    将批量子图数据进行合并
     """
 
     all_rows, all_cols, all_eids, all_nodes, all_dts = [], [], [], [], []
@@ -194,21 +196,32 @@ def construct_mini_batch_giant_graph(all_graphs, max_num_edges):
 
     return {
         # for edges
+        # 所有边的源节点索引数组，经过重新映射后的全局索引
         "row": all_rows,
+        # 所有边的目标节点索引数组，经过重新映射后的全局索引
         "col": all_cols,
+        # 所有边的原始ID数组，保持原始图中的边标识符
         "eid": all_eids,
+        # 边时间差数组，计算为all_dts[all_cols] - all_dts[all_rows]，表示每条边两端节点的时间差
         "edts": all_dts[all_cols] - all_dts[all_rows],
-        # number of subgraphs + 1
+        # 节点指针数组，标记每个子图在合并后图中的节点范围
         "all_node_indptr": all_node_indptr,
+        # 边指针数组，标记每个子图在合并后图中的边范围
         "all_edge_indptr": all_edge_indptr,
         # for nodes
+        # 所有节点的原始ID数组，来自各个子图的节点
         "nodes": all_nodes,
+        # 所有节点的时间差数组，相对于各自根节点的时间差
         "dts": all_dts,
         # general information
+        # 合并后图的总节点数
         "all_num_nodes": cumsum_nodes,
+        # 合并后图的总边数
         "all_num_edges": cumsum_edges,
         # root nodes
+        #  所有子图的根节点ID数组
         "root_nodes": np.array(all_root_nodes, dtype=np.int32),
+        # 所有子图的根节点时间戳数组
         "root_times": np.array(all_root_times, dtype=np.float32),
     }
 
@@ -445,6 +458,7 @@ def get_random_inds(num_subgraph, cached_neg_samples, neg_samples):
     batch_size = num_subgraph // (2 + cached_neg_samples)
     pos_src_inds = np.arange(batch_size)
     pos_dst_inds = np.arange(batch_size) + batch_size
+    # 0与1索引为源节点与目的节点的索引，因此，从后面的负样本索引中随机选取一个
     neg_dst_inds = np.random.randint(
         low=2, high=2 + cached_neg_samples, size=batch_size * neg_samples
     )

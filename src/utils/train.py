@@ -59,11 +59,15 @@ def get_inputs_for_ind(
         mini_batch_inds = get_all_inds(len(subgraph_data_list), cached_neg_samples)
         subgraph_data = [subgraph_data_list[i] for i in mini_batch_inds]
     else:  # sthn valid
+        # 获取的是子图数据
         subgraph_data_list = subgraphs[ind]
+        # [batch_size(node_index_src), batch_size(node_index_dst), batch_size(node_index_neg)]
         mini_batch_inds = get_random_inds(
             len(subgraph_data_list), cached_neg_samples, neg_samples
         )
+
         subgraph_data = [subgraph_data_list[i] for i in mini_batch_inds]
+    # 为什么要有这一步骤
     subgraph_data = construct_mini_batch_giant_graph(subgraph_data, args.max_edges)
 
     # raw edge feats
@@ -99,6 +103,7 @@ def get_inputs_for_ind(
 
     for i in range(len(all_edge_indptr) - 1):
         num_edges = all_edge_indptr[i + 1] - all_edge_indptr[i]
+        # 为每条边生成全局索引，格式为：子图索引 * max_edges + 边在子图内的索引
         all_inds.extend([(args.max_edges * i + j) for j in range(num_edges)])
         has_temporal_neighbors.append(num_edges > 0)
 

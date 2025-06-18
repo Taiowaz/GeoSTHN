@@ -6,6 +6,7 @@ analyze
 exper/*
 temp
 tgb/DATA/*
+temp/
 
 # Log files
 run.log
