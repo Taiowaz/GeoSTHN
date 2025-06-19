@@ -17,6 +17,7 @@ def get_args(args=None):
 
     # basic
     parser.add_argument("--dataset", type=str, default="thgl-software-subset")
+    parser.add_argument("--use_gpu", type=int, default=1, help="use gpu or not")
     parser.add_argument(
         "--device",
         type=int,
