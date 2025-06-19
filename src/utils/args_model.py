@@ -21,7 +21,7 @@ def get_args(args=None):
     parser.add_argument(
         "--device",
         type=int,
-        default=-1,
+        default=0,
         help="GPU device ID (-1 for all available GPUs)",
     )
     parser.add_argument("--batch_size", type=int, default=600)
