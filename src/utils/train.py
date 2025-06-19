@@ -73,7 +73,7 @@ def get_inputs_for_ind(
     # raw edge feats
     subgraph_edge_feats = edge_feats[subgraph_data["eid"]]
     subgraph_edts = torch.from_numpy(subgraph_data["edts"]).float()
-    if args.use_graph_structure and node_feats:
+    if args.use_graph_structure and node_feats is not None:
         num_of_df_links = len(subgraph_data_list) // (cached_neg_samples + 2)
         # subgraph_node_feats = compute_sign_feats(node_feats, df, cur_inds, num_of_df_links, subgraph_data['root_nodes'], args)
         # Erfan: change this part to use masked version
@@ -190,7 +190,6 @@ def run(
 
         start_time = time.time()
         # 将inputs, neg_samples, subgraph_node_feats转为张量
-
         loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
         if mode == "train" and optimizer != None:
             optimizer.zero_grad()
@@ -358,7 +357,8 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
                 sign_feats.append(adj_norm @ sign_feats[-1])
             sign_feats = torch.sum(torch.stack(sign_feats), dim=0)
 
-        output_feats[_root_ind] = sign_feats[root_nodes[_root_ind]]
+        # 确保源张量的数据类型与目标张量一致
+        output_feats[_root_ind] = sign_feats[root_nodes[_root_ind]].float()
 
         i += len(_root_ind) // num_duplicate
 

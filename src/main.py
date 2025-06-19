@@ -56,7 +56,8 @@ def main():
 
     # 3. 设置设备 (CPU/GPU)
     # -------------------------
-    if torch.cuda.is_available():
+    args.use_gpu = 0
+    if args.use_gpu:
         if args.device == -1:  # 使用所有可用GPU
             args.device = torch.device("cuda")
             args.num_gpus = torch.cuda.device_count()

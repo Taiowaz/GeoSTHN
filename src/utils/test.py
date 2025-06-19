@@ -6,6 +6,7 @@ from utils.train import get_inputs_for_ind
 from tgb.linkproppred.evaluate import Evaluator
 import logging
 from sklearn.metrics import roc_auc_score, average_precision_score
+from src.utils.utils import evaluate_mrr
 
 
 def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_feats):
@@ -66,15 +67,9 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
             loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
 
             split = len(pred) // 2
-            # Prepare evaluation input
-            input_dict = {
-                "y_pred_pos": np.array(pred.cpu()[:split].numpy()),
-                "y_pred_neg": np.array(pred.cpu()[split:].numpy()),
-                "eval_metric": [metric],
-            }
 
             # Evaluate and store results
-            perf_list.append(evaluator.eval(input_dict)[metric])
+            perf_list.append(evaluate_mrr(pred, neg_samples))
             pbar.update(1)
 
             # Clear GPU cache periodically

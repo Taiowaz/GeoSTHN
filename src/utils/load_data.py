@@ -111,15 +111,22 @@ def load_all_data(args, dataset):
         node_feat_dims = 0
 
     # !!!True!!!
+    # 尝试引入node_type用于增强
     if args.use_type_feats:
         edge_type = df.label.values
-        logging.info(edge_type)
-        logging.info(edge_type.sum())
         args.num_edgeType = len(set(edge_type.tolist()))
         edge_feats = torch.nn.functional.one_hot(
             torch.from_numpy(edge_type), num_classes=args.num_edgeType
         )
         edge_feat_dims = edge_feats.size(1)
+
+        # 将节点type当作特征取引入
+        node_type = dataset.node_type
+        args.num_nodeType = len(set(node_type.tolist()))
+        node_feats = torch.nn.functional.one_hot(
+            torch.from_numpy(node_type.numpy()), num_classes=args.num_nodeType
+        )
+        node_feat_dims = node_feats.size(1)
 
     logging.info(
         "Node feature dim %d, edge feature dim %d" % (node_feat_dims, edge_feat_dims)
