@@ -17,7 +17,7 @@ import torch
 import logging
 from tgb.linkproppred.dataset_pyg import PyGLinkPropPredDataset
 from tgb.utils.utils import set_random_seed, save_results
-from utils.args_model import get_args
+from utils.config import get_args
 from utils.load_model import load_model
 from utils.load_data import load_all_data
 from utils.test import test
@@ -25,12 +25,9 @@ from utils.log import setup_logger
 
 
 # 定义主函数
-def main():
+def main(args):
     # Start...
     start_overall = timeit.default_timer()
-    # 1. 加载配置
-    # ---------------------
-    args = get_args()
 
     # 创建实验名称和输出目录
     timestamp = datetime.now(china_tz).strftime("%Y-%m-%d_%H-%M-%S")
@@ -56,6 +53,7 @@ def main():
 
     # 3. 设置设备 (CPU/GPU)
     # -------------------------
+    args.use_gpu = 0
     if args.use_gpu:
         if args.device == -1:  # 使用所有可用GPU
             args.device = torch.device("cuda")
@@ -210,4 +208,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = get_args()
+    main(args)

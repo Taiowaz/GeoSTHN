@@ -14,7 +14,7 @@ def main():
     neg_sample_strategy = "node-type-filtered"
     rnd_seed = 42
 
-    name = "thgl-forum"
+    name = "thgl-forum-subset"
     dataset = PyGLinkPropPredDataset(name=name, root="DATA")
     train_mask = dataset.train_mask
     val_mask = dataset.val_mask

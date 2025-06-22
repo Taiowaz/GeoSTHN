@@ -73,7 +73,7 @@ def get_inputs_for_ind(
     # raw edge feats
     subgraph_edge_feats = edge_feats[subgraph_data["eid"]]
     subgraph_edts = torch.from_numpy(subgraph_data["edts"]).float()
-    if args.use_graph_structure and node_feats:
+    if args.use_graph_structure and node_feats is not None:
         num_of_df_links = len(subgraph_data_list) // (cached_neg_samples + 2)
         # subgraph_node_feats = compute_sign_feats(node_feats, df, cur_inds, num_of_df_links, subgraph_data['root_nodes'], args)
         # Erfan: change this part to use masked version

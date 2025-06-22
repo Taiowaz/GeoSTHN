@@ -7,10 +7,12 @@ exper/*
 temp
 tgb/DATA/*
 temp/
+graph_test
 
 # Log files
 *.log
 *.pid
+*.txt
 
 # Build files
 build
