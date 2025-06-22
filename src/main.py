@@ -162,40 +162,40 @@ def main():
 
         dataset.load_test_ns()
         # testing ...
-        start_test = timeit.default_timer()
-        perf_metrics_test_mean, perf_metrics_test_std, perf_list_test = test(
-            "test",
-            model.to(args.device),
-            args,
-            metric,
-            neg_sampler,
-            g,
-            df,
-            node_feats,
-            edge_feats,
-        )
-        end_test = timeit.default_timer()
+        # start_test = timeit.default_timer()
+        # perf_metrics_test_mean, perf_metrics_test_std, perf_list_test = test(
+        #     "test",
+        #     model.to(args.device),
+        #     args,
+        #     metric,
+        #     neg_sampler,
+        #     g,
+        #     df,
+        #     node_feats,
+        #     edge_feats,
+        # )
+        # end_test = timeit.default_timer()
 
-        logging.info(f"Test: Evaluation Setting: >>> ONE-VS-MANY <<< ")
-        logging.info(
-            f"\tTest: {metric}: {perf_metrics_test_mean: .4f} ± {perf_metrics_test_std: .4f}"
-        )
-        test_time = timeit.default_timer() - start_test
-        logging.info(f"\tTest: Elapsed Time (s): {test_time: .4f}")
+        # logging.info(f"Test: Evaluation Setting: >>> ONE-VS-MANY <<< ")
+        # logging.info(
+        #     f"\tTest: {metric}: {perf_metrics_test_mean: .4f} ± {perf_metrics_test_std: .4f}"
+        # )
+        # test_time = timeit.default_timer() - start_test
+        # logging.info(f"\tTest: Elapsed Time (s): {test_time: .4f}")
 
-        save_results(
-            {
-                "model": args.model,
-                "data": args.dataset,
-                "run": run_idx,
-                "seed": args.seed,
-                f"val {metric}": f"{perf_metrics_val_mean: .4f} ± {perf_metrics_val_std: .4f}",
-                f"test {metric}": f"{perf_metrics_test_mean: .4f} ± {perf_metrics_test_std: .4f}",
-                "test_time": test_time,
-                "tot_train_val_time": val_time,
-            },
-            result_filename,
-        )
+        # save_results(
+        #     {
+        #         "model": args.model,
+        #         "data": args.dataset,
+        #         "run": run_idx,
+        #         "seed": args.seed,
+        #         f"val {metric}": f"{perf_metrics_val_mean: .4f} ± {perf_metrics_val_std: .4f}",
+        #         f"test {metric}": f"{perf_metrics_test_mean: .4f} ± {perf_metrics_test_std: .4f}",
+        #         "test_time": test_time,
+        #         "tot_train_val_time": val_time,
+        #     },
+        #     result_filename,
+        # )
 
         logging.info(
             f">>>>> Run: {run_idx}, elapsed time: {timeit.default_timer() - start_run: .4f} <<<<<"

@@ -91,7 +91,9 @@ def get_inputs_for_ind(
         )
         subgraph_analysis_data = torch.tensor(subgraph_analysis_data).float()
         subgraph_analysis_data = subgraph_analysis_data.to(args.device)
-        subgraph_node_feats = subgraph_node_feats + subgraph_analysis_data
+        subgraph_node_feats = torch.cat(
+            [subgraph_node_feats, subgraph_analysis_data], dim=1
+        )
         cur_inds += num_of_df_links
     else:
         subgraph_node_feats = None
@@ -138,6 +140,7 @@ def run(
     optimizer,
     args,
     subgraphs,
+    subgraph_llm_encode,
     df,
     node_feats,
     edge_feats,
@@ -180,7 +183,6 @@ def run(
     MLAUROC.reset()
     MLAUPRC.reset()
 
-    subgraph_llm_encode = None
     for ind in range(len(train_loader)):
         ###################################################
         inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
@@ -284,6 +286,7 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
             optimizer,
             args,
             train_subgraphs,
+            train_subgraphs_llm_encode,
             df,
             node_feats,
             edge_feats,
@@ -298,6 +301,7 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
                 None,
                 args,
                 valid_subgraphs,
+                valid_subgraphs_llm_encode,
                 df,
                 node_feats,
                 edge_feats,

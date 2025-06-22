@@ -170,16 +170,19 @@ def encode_subgraph_file(input_file: str, output_file: str, batch_size: int):
                 print(f"Skipping invalid JSON line: {line}")
             except Exception as e:
                 print(f"Error processing line: {line}\n{e}")
+            if len(current_batch) == batch_size:
+                encoded_batches.append(np.array(current_batch))
+                current_batch = []
 
     # 保存剩余的批次（如果有）
     if current_batch:
         encoded_batches.append(np.array(current_batch))
 
-    # 将所有批次合并为一个二维数组
-    encoded_array = np.vstack(encoded_batches)
+    encoded_array = np.array(encoded_batches)
 
     # 保存到文件
     np.save(output_file, encoded_array)
+    print(f"Encoded data shape: {encoded_array.shape}")
     print(f"Encoded data saved to {output_file}")
 
 
@@ -212,9 +215,12 @@ def extract_parameters_from_filename(filename: str):
 
 
 if __name__ == "__main__":
-    input_file = "tgb/DATA/thgl_software_subset/valid_neg_sample_neg1_bs600_hops5_neighbors50_llm_analysis.txt"
+    input_file = "/root/LLM-CDHG/tgb/DATA/thgl_software_subset/valid_neg_sample_neg1_bs600_hops5_neighbors50_llm_analysis.txt"
     batch_size, neg_num = extract_parameters_from_filename(input_file)
-    batch_size = batch_size * (neg_num + 2)
+    if "train" in input_file:
+        batch_size = batch_size * (neg_num + 2)
+    else:
+        batch_size = batch_size
     output_file = (
         input_file.split(".")[0].replace("llm_analysis", "llm_encode") + ".npy"
     )

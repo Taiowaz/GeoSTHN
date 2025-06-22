@@ -357,7 +357,7 @@ def pre_compute_subgraphs(
     if os.path.exists(fn_subgraph_data):
         # 若存在，则加载缓存的子图和边标签
         subgraph_elabel = pickle.load(open(fn_subgraph_data, "rb"))
-        subgraph_llm_encode = np.load(fn_subgraph_llm_encode)
+        subgraph_llm_encode = np.load(fn_subgraph_llm_encode, allow_pickle=True)
         logging.info(f"Successfully load subgraphs from {fn_subgraph_data}")
         logging.info(
             f"Successfully load subgraphs llm encode from {fn_subgraph_llm_encode}"

@@ -15,7 +15,7 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
     logging.info(f"Starting {split_mode} phase...")
 
     # Pre-compute subgraphs
-    test_subgraphs = pre_compute_subgraphs(
+    test_subgraphs, test_subgraph_llm_encode = pre_compute_subgraphs(
         args,
         g,
         df,
@@ -52,6 +52,7 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
             # Get inputs for current batch
             inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
                 test_subgraphs,
+                test_subgraph_llm_encode,
                 "test" if split_mode == "test" else "tgb-val",
                 cached_neg_samples,
                 neg_samples,

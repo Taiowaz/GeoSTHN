@@ -6,7 +6,7 @@ def load_model(args):
     # get model
     edge_predictor_configs = {
         "dim_in_time": args.time_dims,  # 100
-        "dim_in_node": args.node_feat_dims,  # 0
+        "dim_in_node": args.node_feat_dims + 782,  # 782 为LLM增强子图所得节点特征
         "predict_class": 1 if not args.predict_class else args.num_edgeType + 1,  # 1
     }
     if args.model == "sthn":
