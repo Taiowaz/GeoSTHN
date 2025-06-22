@@ -35,6 +35,7 @@ from src.utils.utils import row_norm
 
 def get_inputs_for_ind(
     subgraphs,
+    subgraph_llm_encode,
     mode,
     cached_neg_samples,
     neg_samples,
@@ -46,6 +47,8 @@ def get_inputs_for_ind(
     args,
 ):
     subgraphs, elabel = subgraphs
+    subgraph_analysis_sublist = subgraph_llm_encode[ind]
+
     scaler = MinMaxScaler()
     if args.use_cached_subgraph == False and mode == "train":
         subgraph_data_list = subgraphs.all_root_nodes[ind]
@@ -61,13 +64,14 @@ def get_inputs_for_ind(
     else:  # sthn valid
         # 获取的是子图数据
         subgraph_data_list = subgraphs[ind]
+        # 从子图数据中获取分析结果
         # [batch_size(node_index_src), batch_size(node_index_dst), batch_size(node_index_neg)]
         mini_batch_inds = get_random_inds(
             len(subgraph_data_list), cached_neg_samples, neg_samples
         )
-
+        subgraph_analysis_data = [subgraph_analysis_sublist[i] for i in mini_batch_inds]
         subgraph_data = [subgraph_data_list[i] for i in mini_batch_inds]
-    # 为什么要有这一步骤
+
     subgraph_data = construct_mini_batch_giant_graph(subgraph_data, args.max_edges)
 
     # raw edge feats
@@ -85,6 +89,9 @@ def get_inputs_for_ind(
             subgraph_data["root_nodes"],
             args,
         )
+        subgraph_analysis_data = torch.tensor(subgraph_analysis_data).float()
+        subgraph_analysis_data = subgraph_analysis_data.to(args.device)
+        subgraph_node_feats = subgraph_node_feats + subgraph_analysis_data
         cur_inds += num_of_df_links
     else:
         subgraph_node_feats = None
@@ -173,10 +180,12 @@ def run(
     MLAUROC.reset()
     MLAUPRC.reset()
 
+    subgraph_llm_encode = None
     for ind in range(len(train_loader)):
         ###################################################
         inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
             subgraphs,
+            subgraph_llm_encode,
             mode,
             cached_neg_samples,
             neg_samples,
@@ -225,11 +234,15 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
     ###################################################
     # get cached data
     if args.use_cached_subgraph:
-        train_subgraphs = pre_compute_subgraphs(args, g, df, mode="train")
+        train_subgraphs, train_subgraphs_llm_encode = pre_compute_subgraphs(
+            args, g, df, mode="train"
+        )
     else:
         train_subgraphs = get_subgraph_sampler(args, g, df, mode="train")
 
-    valid_subgraphs = pre_compute_subgraphs(args, g, df, mode="valid")
+    valid_subgraphs, valid_subgraphs_llm_encode = pre_compute_subgraphs(
+        args, g, df, mode="valid"
+    )
     # test_subgraphs  = pre_compute_subgraphs(args, g, df, mode='test' )
 
     ###################################################

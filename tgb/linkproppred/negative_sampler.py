@@ -31,7 +31,7 @@ class NegativeEdgeSampler(object):
             first_dst_id: identity of the first destination node
             last_dst_id: indentity of the last destination node
             strategy: will always load the pre-generated negatives
-        
+
         Returns:
             None
         """
@@ -53,7 +53,7 @@ class NegativeEdgeSampler(object):
         Parameters:
             fname: the file name of the evaluation ns on disk
             split_mode: the split mode of the evaluation set, can be either `val` or `test`
-        
+
         Returns:
             None
         """
@@ -65,9 +65,10 @@ class NegativeEdgeSampler(object):
             raise FileNotFoundError(f"File not found at {fname}")
         self.eval_set[split_mode] = load_pkl(fname)
 
-    def reset_eval_set(self, 
-                       split_mode: str = "test",
-                       ) -> None:
+    def reset_eval_set(
+        self,
+        split_mode: str = "test",
+    ) -> None:
         r"""
         Reset evaluation set
 
@@ -83,12 +84,14 @@ class NegativeEdgeSampler(object):
         ], "Invalid split-mode! It should be `val`, `test`!"
         self.eval_set[split_mode] = None
 
-    def query_batch(self, 
-                    pos_src: Tensor, 
-                    pos_dst: Tensor, 
-                    pos_timestamp: Tensor, 
-                    edge_type: Tensor = None,
-                    split_mode: str = "test") -> list:
+    def query_batch(
+        self,
+        pos_src: Tensor,
+        pos_dst: Tensor,
+        pos_timestamp: Tensor,
+        edge_type: Tensor = None,
+        split_mode: str = "test",
+    ) -> list:
         r"""
         For each positive edge in the `pos_batch`, return a list of negative edges
         `split_mode` specifies whether the valiation or test evaluation set should be retrieved.
@@ -112,7 +115,7 @@ class NegativeEdgeSampler(object):
             raise ValueError(
                 f"Evaluation set is None! You should load the {split_mode} evaluation set first!"
             )
-        
+
         # check the argument types...
         if torch is not None and isinstance(pos_src, torch.Tensor):
             pos_src = pos_src.detach().cpu().numpy()
@@ -122,14 +125,18 @@ class NegativeEdgeSampler(object):
             pos_timestamp = pos_timestamp.detach().cpu().numpy()
         if torch is not None and isinstance(edge_type, torch.Tensor):
             edge_type = edge_type.detach().cpu().numpy()
-        
-        if not isinstance(pos_src, np.ndarray) or not isinstance(pos_dst, np.ndarray) or not(pos_timestamp, np.ndarray):
+
+        if (
+            not isinstance(pos_src, np.ndarray)
+            or not isinstance(pos_dst, np.ndarray)
+            or not (pos_timestamp, np.ndarray)
+        ):
             raise RuntimeError(
                 "pos_src, pos_dst, and pos_timestamp need to be either numpy ndarray or torch tensor!"
-                )
+            )
 
         neg_samples = []
-        if (edge_type is None):
+        if edge_type is None:
             for pos_s, pos_d, pos_t in zip(pos_src, pos_dst, pos_timestamp):
                 if (pos_s, pos_d, pos_t) not in self.eval_set[split_mode]:
                     raise ValueError(
@@ -139,11 +146,15 @@ class NegativeEdgeSampler(object):
                     neg_samples.append(
                         [
                             int(neg_dst)
-                            for neg_dst in self.eval_set[split_mode][(pos_s, pos_d, pos_t)]
+                            for neg_dst in self.eval_set[split_mode][
+                                (pos_s, pos_d, pos_t)
+                            ]
                         ]
                     )
         else:
-            for pos_s, pos_d, pos_t, e_type in zip(pos_src, pos_dst, pos_timestamp, edge_type):
+            for pos_s, pos_d, pos_t, e_type in zip(
+                pos_src, pos_dst, pos_timestamp, edge_type
+            ):
                 if (pos_s, pos_d, pos_t, e_type) not in self.eval_set[split_mode]:
                     raise ValueError(
                         f"The edge ({pos_s}, {pos_d}, {pos_t}, {e_type}) is not in the '{split_mode}' evaluation set! Please check the implementation."
@@ -152,7 +163,9 @@ class NegativeEdgeSampler(object):
                     neg_samples.append(
                         [
                             int(neg_dst)
-                            for neg_dst in self.eval_set[split_mode][(pos_s, pos_d, pos_t, e_type)]
+                            for neg_dst in self.eval_set[split_mode][
+                                (pos_s, pos_d, pos_t, e_type)
+                            ]
                         ]
                     )
 

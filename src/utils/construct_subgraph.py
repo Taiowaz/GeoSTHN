@@ -5,6 +5,7 @@ URL: https://github.com/celi52/STHN/blob/main/construct_subgraph.py
 Notes: The NegLinkSampler is only used for STHN internal sampling and not for TGB
 """
 
+from re import sub
 import numpy as np
 import logging
 
@@ -346,26 +347,21 @@ def pre_compute_subgraphs(
         extra_neg_samples = 1
 
     # 构建缓存文件的路径
-    fn = os.path.join(
-        os.getcwd(),
-        "tgb/DATA",
-        args.dataset.replace("-", "_"),
-        "%s_neg_sample_neg%d_bs%d_hops%d_neighbors%d.pickle"
-        % (
-            mode,
-            extra_neg_samples,
-            args.batch_size,
-            args.sampled_num_hops,
-            args.num_neighbors,
-        ),
-    )
+    base_dir = os.path.join(os.getcwd(), "tgb/DATA", args.dataset.replace("-", "_"))
+    args_path = f"{mode}_neg_sample_neg{extra_neg_samples}_bs{args.batch_size}_hops{args.sampled_num_hops}_neighbors{args.num_neighbors}"
+    fn_subgraph_data = os.path.join(base_dir, f"{args_path}.pickle")
+    fn_subgraph_llm_encode = os.path.join(base_dir, f"{args_path}_llm_encode.npy")
     ###################################################
 
     # 检查缓存文件是否存在
-    if os.path.exists(fn):
+    if os.path.exists(fn_subgraph_data):
         # 若存在，则加载缓存的子图和边标签
-        subgraph_elabel = pickle.load(open(fn, "rb"))
-        logging.info(f"Successfully load subgraphs from {fn}")
+        subgraph_elabel = pickle.load(open(fn_subgraph_data, "rb"))
+        subgraph_llm_encode = np.load(fn_subgraph_llm_encode)
+        logging.info(f"Successfully load subgraphs from {fn_subgraph_data}")
+        logging.info(
+            f"Successfully load subgraphs llm encode from {fn_subgraph_llm_encode}"
+        )
 
     else:
         ##################################################
@@ -439,9 +435,11 @@ def pre_compute_subgraphs(
             try:
                 # 将子图和边标签缓存到文件中
                 pickle.dump(
-                    subgraph_elabel, open(fn, "wb"), protocol=pickle.HIGHEST_PROTOCOL
+                    subgraph_elabel,
+                    open(fn_subgraph_data, "wb"),
+                    protocol=pickle.HIGHEST_PROTOCOL,
                 )
-                logging.info(f"Successfully cached subgraphs to {fn}")
+                logging.info(f"Successfully cached subgraphs to {fn_subgraph_data}")
             except Exception as e:
                 # 记录缓存失败的错误信息
                 logging.error(f"Failed to cache subgraphs: {e}")
@@ -450,7 +448,7 @@ def pre_compute_subgraphs(
 
         ##################################################
 
-    return subgraph_elabel
+    return subgraph_elabel, subgraph_llm_encode
 
 
 def get_random_inds(num_subgraph, cached_neg_samples, neg_samples):

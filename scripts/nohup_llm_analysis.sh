@@ -1,0 +1,1 @@
+nohup /root/miniconda3/envs/llm-cdhg/bin/python /root/LLM-CDHG/src/LLM/LLM_enhence.py > run_llm_analysis.log 2>&1 &

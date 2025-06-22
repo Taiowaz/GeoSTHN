@@ -726,12 +726,49 @@ class EdgePredictor_per_node(torch.nn.Module):
         return self.out_fc(h_pos_edge), self.out_fc(h_neg_edge)
 
 
+class AttentionFusion(nn.Module):
+    def __init__(self, temporal_dim, static_dim, output_dim):
+        super(AttentionFusion, self).__init__()
+        # 将两种特征投影到相同的维度，方便计算注意力
+        self.temporal_proj = nn.Linear(temporal_dim, output_dim)
+        self.static_proj = nn.Linear(static_dim, output_dim)
+
+        # 用于计算注意力权重的线性层
+        self.attention_weights_layer = nn.Linear(output_dim, 1)
+
+    def forward(self, temporal_feats, static_feats):
+        # 1. 将两种特征投影到同一个特征空间
+        t_proj = torch.tanh(self.temporal_proj(temporal_feats))
+        s_proj = torch.tanh(self.static_proj(static_feats))
+
+        # 2. 计算两种特征的注意力权重
+        #    a_t 是时序特征的重要性, a_s 是静态特征的重要性
+        a_t = self.attention_weights_layer(t_proj)
+        a_s = self.attention_weights_layer(s_proj)
+
+        # 3. 将权重拼接并通过 softmax 归一化
+        attention_weights = torch.softmax(torch.cat([a_t, a_s], dim=1), dim=1)
+
+        # 4. 加权融合
+        #    使用 unsqueeze 和 repeat 将权重扩展以匹配特征维度
+        #    或者直接用广播机制 (更高效)
+        fused_feats = (
+            attention_weights[:, 0:1] * t_proj + attention_weights[:, 1:2] * s_proj
+        )
+
+        return fused_feats
+
+
 class STHN_Interface(nn.Module):
     def __init__(self, mlp_mixer_configs, edge_predictor_configs):
         super(STHN_Interface, self).__init__()
 
         self.time_feats_dim = edge_predictor_configs["dim_in_time"]
         self.node_feats_dim = edge_predictor_configs["dim_in_node"]
+        temporal_dim = mlp_mixer_configs["out_channels"]
+        static_dim = edge_predictor_configs["dim_in_node"]
+        fused_dim = temporal_dim + static_dim
+        self.fusion_module = AttentionFusion(temporal_dim, static_dim, fused_dim)
 
         if self.time_feats_dim > 0:
             self.base_model = Patch_Encoding(**mlp_mixer_configs)
@@ -759,7 +796,7 @@ class STHN_Interface(nn.Module):
             x = self.base_model(*model_inputs)
         elif self.time_feats_dim > 0 and self.node_feats_dim > 0:
             x = self.base_model(*model_inputs)
-            x = torch.cat([x, node_feats], dim=1)
+            x = self.fusion_module(x, node_feats)
         elif self.time_feats_dim == 0 and self.node_feats_dim > 0:
             x = node_feats
         else:

@@ -1,0 +1,1 @@
+nohup /root/miniconda3/envs/llm-cdhg/bin/python /root/LLM-CDHG/src/LLM/subgraph_analysis_encode.py > run_encode.log 2>&1 &
