@@ -61,6 +61,7 @@ def get_inputs_for_ind(
         subgraph_data_list = subgraphs[ind]
         mini_batch_inds = get_all_inds(len(subgraph_data_list), cached_neg_samples)
         subgraph_data = [subgraph_data_list[i] for i in mini_batch_inds]
+        subgraph_analysis_data = [subgraph_analysis_sublist[i] for i in mini_batch_inds]
     else:  # sthn valid
         # 获取的是子图数据
         subgraph_data_list = subgraphs[ind]

@@ -140,12 +140,14 @@ def encode_subgraph_file(input_file: str, output_file: str, batch_size: int):
     with open(input_file, "r", encoding="utf-8") as f:
         total_lines = sum(1 for _ in f)
 
+    pre_batch_id = 0
     # 打开文件并使用 tqdm 创建进度条
     with open(input_file, "r", encoding="utf-8") as f:
         for line in tqdm(f, total=total_lines, desc="Encoding subgraphs"):
             try:
                 # 解析每行数据为 JSON
                 subgraph_data = json.loads(line.strip())
+                current_batch_id = list(subgraph_data.get("position", ""))[0]
                 analysis_str = subgraph_data.get("analysis", "{}")
                 try:
                     # 尝试将 analysis 字符串解析为字典
@@ -158,21 +160,16 @@ def encode_subgraph_file(input_file: str, output_file: str, batch_size: int):
 
                 # 对分析字段进行编码
                 encoded_vector = encoder.encode(analysis_json_string)
-
-                # 将编码后的向量添加到当前批次
-                current_batch.append(encoded_vector)
-
-                # 如果当前批次达到 batch_size，则保存并重置
-                if len(current_batch) == batch_size:
-                    encoded_batches.append(np.array(current_batch))
-                    current_batch = []
             except json.JSONDecodeError:
                 print(f"Skipping invalid JSON line: {line}")
             except Exception as e:
                 print(f"Error processing line: {line}\n{e}")
-            if len(current_batch) == batch_size:
+            if current_batch_id != pre_batch_id:
                 encoded_batches.append(np.array(current_batch))
                 current_batch = []
+            # 先判断再加入
+            current_batch.append(encoded_vector)
+            pre_batch_id = current_batch_id
 
     # 保存剩余的批次（如果有）
     if current_batch:
@@ -217,10 +214,7 @@ def extract_parameters_from_filename(filename: str):
 if __name__ == "__main__":
     input_file = "/root/LLM-CDHG/tgb/DATA/thgl_software_subset/valid_neg_sample_neg1_bs600_hops5_neighbors50_llm_analysis.txt"
     batch_size, neg_num = extract_parameters_from_filename(input_file)
-    if "train" in input_file:
-        batch_size = batch_size * (neg_num + 2)
-    else:
-        batch_size = batch_size
+    batch_size = batch_size * (neg_num + 2)
     output_file = (
         input_file.split(".")[0].replace("llm_analysis", "llm_encode") + ".npy"
     )

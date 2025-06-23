@@ -63,7 +63,7 @@ def process_and_append(data_dict, output_file, log_file, subgraph_index, dict_in
 
 def main():
     # 加载数据文件
-    fn = "tgb/DATA/thgl_software_subset/test_neg_sample_neg1_bs600_hops5_neighbors50.pickle"
+    fn = "/root/LLM-CDHG/tgb/DATA/thgl_software_subset/valid_neg_sample_neg1_bs600_hops5_neighbors50.pickle"
     # subgraphs = pickle.load(open(fn, "rb"))[0][0][194]
     # subgraphs = [[subgraphs]]
 
