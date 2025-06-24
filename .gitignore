@@ -9,8 +9,8 @@ tgb/DATA/*
 temp/
 
 # Log files
-run.log
-run.pid
+*.log
+*.pid
 
 # Build files
 build
