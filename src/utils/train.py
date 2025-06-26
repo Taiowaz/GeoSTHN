@@ -328,41 +328,83 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
 
 
 def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
+    """
+    计算 SIGN (Scalable Inception Graph Neural Networks) 特征。
+
+    参数:
+    node_feats (torch.Tensor): 输入的节点特征张量。
+    df (pandas.DataFrame): 包含图边信息的 DataFrame，通常有 'src' 和 'dst' 列。
+    start_i (int): 处理边信息时的起始索引。
+    num_links (int): 链接的数量。
+    root_nodes (list): 根节点的索引列表。
+    args (argparse.Namespace): 包含配置参数的对象。
+
+    返回:
+    torch.Tensor: 计算得到的 SIGN 特征张量。
+    """
+    # 计算每个链接对应的根节点重复次数
     num_duplicate = len(root_nodes) // num_links
+    # 获取图中节点的总数
     num_nodes = args.num_nodes
 
+    # 生成从 0 到 len(root_nodes) - 1 的整数序列，并重塑为二维张量
     root_inds = torch.arange(len(root_nodes)).view(num_duplicate, -1)
+    # 在第 1 维上分割张量为 1 个块，并将每个块展平为一维张量
     root_inds = [arr.flatten() for arr in root_inds.chunk(1, dim=1)]
 
+    # 初始化输出特征张量，形状为 (len(root_nodes), node_feats.size(1))，并移动到指定设备
     output_feats = torch.zeros((len(root_nodes), node_feats.size(1))).to(args.device)
+    # 初始化当前处理的边信息的索引
     i = start_i
 
+    # 遍历每个根节点索引组
     for _root_ind in root_inds:
 
+        # 如果是起始索引或者不需要进行结构跳数聚合，则直接复制原始节点特征
         if i == 0 or args.structure_hops == 0:
             sign_feats = node_feats.clone()
         else:
+            # 计算边信息的起始索引，确保不小于 0
             prev_i = max(0, i - args.structure_time_gap)
-            cur_df = df[prev_i:i]  # get adj's row, col indices (as undirected)
+            # 从 DataFrame 中截取相应范围的边信息
+            cur_df = df[prev_i:i]  # 获取邻接矩阵的行和列索引（无向图）
+            # 将源节点索引从 numpy 数组转换为 PyTorch 张量
             src = torch.from_numpy(cur_df.src.values)
+            # 将目标节点索引从 numpy 数组转换为 PyTorch 张量
             dst = torch.from_numpy(cur_df.dst.values)
+            # 构建无向图的边索引，将 src 和 dst 拼接两次
             edge_index = torch.stack([torch.cat([src, dst]), torch.cat([dst, src])])
+            # 对边索引进行去重，并返回去重后的边索引和每条边的出现次数
             edge_index, edge_cnt = torch.unique(edge_index, dim=1, return_counts=True)
-            mask = edge_index[0] != edge_index[1]  # ignore self-loops
+            # 创建掩码，过滤自环边（源节点和目标节点相同的边）
+            mask = edge_index[0] != edge_index[1]  # 忽略自环边
+            # 构建稀疏邻接矩阵
             adj = SparseTensor(
+                # 邻接矩阵中非零元素的值为 1
                 value=torch.ones_like(edge_cnt[mask]).float(),
+                # 邻接矩阵的行索引
                 row=edge_index[0][mask].long(),
+                # 邻接矩阵的列索引
                 col=edge_index[1][mask].long(),
+                # 邻接矩阵的形状
                 sparse_sizes=(num_nodes, num_nodes),
             )
+            # 对邻接矩阵进行行归一化，并移动到指定设备
             adj_norm = row_norm(adj).to(args.device)
+            # 初始化 SIGN 特征列表，第一个元素为原始节点特征
             sign_feats = [node_feats]
+            # 进行多跳邻域聚合
             for _ in range(args.structure_hops):
+                # 通过矩阵乘法进行邻域聚合，并添加到 SIGN 特征列表
                 sign_feats.append(adj_norm @ sign_feats[-1])
+            # 将 SIGN 特征列表中的所有张量在第 0 维堆叠后求和
             sign_feats = torch.sum(torch.stack(sign_feats), dim=0)
 
+        # 将计算得到的 SIGN 特征赋值给对应的根节点
         output_feats[_root_ind] = sign_feats[root_nodes[_root_ind]]
 
+        # 更新当前处理的边信息的索引
         i += len(_root_ind) // num_duplicate
 
+    # 返回计算得到的 SIGN 特征张量
     return output_feats

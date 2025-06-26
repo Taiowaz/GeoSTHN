@@ -50,6 +50,8 @@ def get_args(args=None):
     parser.add_argument("--use_type_feats", action="store_true", default=True)
 
     parser.add_argument("--use_graph_structure", action="store_true", default=True)
+    # 确定从历史边数据中提取多少时间范围内的图结构信息
+    # train.compute_sign_feats中使用
     parser.add_argument("--structure_time_gap", type=int, default=2000)
     parser.add_argument("--structure_hops", type=int, default=1)
 
