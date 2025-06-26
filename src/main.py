@@ -53,7 +53,7 @@ def main(args):
 
     # 3. 设置设备 (CPU/GPU)
     # -------------------------
-    args.use_gpu = 0
+    # args.use_gpu = 0
     if args.use_gpu:
         if args.device == -1:  # 使用所有可用GPU
             args.device = torch.device("cuda")

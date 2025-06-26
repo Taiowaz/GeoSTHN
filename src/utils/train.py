@@ -249,6 +249,10 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
     low_loss = 100000
     user_train_total_time = 0
     user_epoch_num = 0
+    # 定义早停机制的参数
+    patience = 10  # 允许验证集性能未提升的最大连续轮数
+    counter = 0  # 记录验证集性能未提升的连续轮数
+
     if args.predict_class:
         num_classes = args.num_edgeType + 1
         train_AUROC = MulticlassAUROC(num_classes, average="macro", thresholds=None)
@@ -280,7 +284,6 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
             mode="train",
         )
         with torch.no_grad():
-            # second variable (optimizer) is only required for training
             valid_auc, valid_ap, valid_loss, time_valid = run(
                 copy.deepcopy(model),
                 None,
@@ -293,32 +296,32 @@ def link_pred_train(model, args, g, df, node_feats, edge_feats):
                 valid_AUPRC,
                 mode="valid",
             )
-        #     # second variable (optimizer) is only required for training
-        #     test_auc,  test_ap,  test_loss, time_test = run(copy.deepcopy(model), None, args, test_subgraphs,  df,
-        #                                           node_feats, edge_feats, test_AUROC, test_AUPRC, mode='test')
 
         if valid_loss < low_loss:
             best_auc_model = copy.deepcopy(model).cpu()
             best_auc = valid_auc
             low_loss = valid_loss
             best_epoch = epoch
+            counter = 0  # 重置早停计数器
+        else:
+            counter += 1  # 验证集性能未提升，计数器加1
 
         user_train_total_time += time_train + time_valid
         user_epoch_num += 1
-        if epoch > best_epoch + 20:
+
+        # 检查早停条件
+        if counter >= patience:
+            logging.info(f"Early stopping at epoch {epoch + 1}")
             break
 
         all_results["train_ap"].append(train_ap)
         all_results["valid_ap"].append(valid_ap)
-        # all_results['test_ap'].append(test_ap)
 
         all_results["valid_auc"].append(valid_auc)
         all_results["train_auc"].append(train_auc)
-        # all_results['test_auc'].append(test_auc)
 
         all_results["train_loss"].append(train_loss)
         all_results["valid_loss"].append(valid_loss)
-        # all_results['test_loss'].append(test_loss)
 
     logging.info(f"best epoch {best_epoch}, auc score {best_auc}")
     return best_auc_model
