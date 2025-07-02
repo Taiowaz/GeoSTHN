@@ -50,7 +50,7 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
     with torch.no_grad():
         for ind in range(len(test_loader)):
             # Get inputs for current batch
-            inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
+            inputs, adj_norm, root_nodes, cur_inds = get_inputs_for_ind(
                 test_subgraphs,
                 "test" if split_mode == "test" else "tgb-val",
                 cached_neg_samples,
@@ -64,7 +64,9 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
             )
 
             # Forward pass
-            loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
+            loss, pred, edge_label = model(
+                inputs, neg_samples, node_feats, adj_norm, root_nodes
+            )
             split = len(pred) // 2
 
             # Evaluate and store results

@@ -64,7 +64,7 @@ def load_graph(data):
         ts=ext_full_ts,
         eid=ext_full_eid,
     )
-    g = np.load("/tmp/ext_full.npz")
+    g = np.load("/tmp/ext_full.npz", allow_pickle=True)
     return g, df
 
 

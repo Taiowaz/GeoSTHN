@@ -17,6 +17,7 @@ def load_model(args):
             from src.model.sthn import STHN_Interface
         from utils.train import link_pred_train
 
+        gnn_configs = {"use_gnn": True, "hidden_dim": 128, "out_dim": 64}
         mixer_configs = {
             "per_graph_size": args.max_edges,  # 50
             "time_channels": args.time_dims,  # 100
@@ -33,7 +34,7 @@ def load_model(args):
     else:
         NotImplementedError()
 
-    model = STHN_Interface(mixer_configs, edge_predictor_configs)
+    model = STHN_Interface(mixer_configs, edge_predictor_configs, gnn_configs)
     for k, v in model.named_parameters():
         logging.info(f"{k}: {v.requires_grad}")
 

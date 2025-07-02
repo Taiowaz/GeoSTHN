@@ -73,21 +73,37 @@ def get_inputs_for_ind(
     # raw edge feats
     subgraph_edge_feats = edge_feats[subgraph_data["eid"]]
     subgraph_edts = torch.from_numpy(subgraph_data["edts"]).float()
+    # +++ 修改：为GNN构建邻接矩阵的逻辑 +++
+    adj_norm, root_nodes_tensor = None, None
     if args.use_graph_structure and node_feats is not None:
         num_of_df_links = len(subgraph_data_list) // (cached_neg_samples + 2)
         # subgraph_node_feats = compute_sign_feats(node_feats, df, cur_inds, num_of_df_links, subgraph_data['root_nodes'], args)
         # Erfan: change this part to use masked version
-        subgraph_node_feats = compute_sign_feats(
-            node_feats,
-            cur_df,
-            cur_inds,
-            num_of_df_links,
-            subgraph_data["root_nodes"],
-            args,
+        # --- 将原compute_sign_feats中的邻接矩阵构建逻辑移到这里 ---
+        i = cur_inds
+        prev_i = max(0, i - args.structure_time_gap)
+        hist_df = cur_df[prev_i:i]
+
+        src = torch.from_numpy(hist_df.src.values)
+        dst = torch.from_numpy(hist_df.dst.values)
+        edge_index = torch.stack([torch.cat([src, dst]), torch.cat([dst, src])])
+        edge_index, edge_cnt = torch.unique(edge_index, dim=1, return_counts=True)
+
+        mask = edge_index[0] != edge_index[1]
+        adj = SparseTensor(
+            value=torch.ones_like(edge_cnt[mask]).float(),
+            row=edge_index[0][mask].long(),
+            col=edge_index[1][mask].long(),
+            sparse_sizes=(args.num_nodes, args.num_nodes),
         )
+        adj_norm = row_norm(adj).to(args.device)
+        root_nodes_tensor = torch.from_numpy(subgraph_data["root_nodes"]).long()
+        # --- 逻辑移动结束 ---
         cur_inds += num_of_df_links
     else:
-        subgraph_node_feats = None
+        # 如果不使用图结构，则从原始特征中提取
+        if node_feats is not None:
+            root_nodes_tensor = torch.from_numpy(subgraph_data["root_nodes"]).long()
     # scale
     scaler.fit(subgraph_edts.reshape(-1, 1))
     subgraph_edts = (
@@ -123,7 +139,7 @@ def get_inputs_for_ind(
             torch.tensor(all_inds).long(),
             torch.from_numpy(subgraph_edge_type).to(args.device),
         ]
-    return inputs, subgraph_node_feats, cur_inds
+    return inputs, adj_norm, root_nodes_tensor, cur_inds
 
 
 def run(
@@ -175,7 +191,7 @@ def run(
 
     for ind in range(len(train_loader)):
         ###################################################
-        inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
+        inputs, adj_norm, root_nodes, cur_inds = get_inputs_for_ind(
             subgraphs,
             mode,
             cached_neg_samples,
@@ -191,7 +207,9 @@ def run(
         start_time = time.time()
         # 将inputs, neg_samples, subgraph_node_feats转为张量
 
-        loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
+        loss, pred, edge_label = model(
+            inputs, neg_samples, node_feats, adj_norm, root_nodes
+        )
         if mode == "train" and optimizer != None:
             optimizer.zero_grad()
             if isinstance(loss, torch.Tensor) and loss.dim() > 0:

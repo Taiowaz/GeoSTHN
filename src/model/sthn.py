@@ -1,3 +1,4 @@
+from re import A
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,6 +11,7 @@ import logging
 from tqdm import tqdm
 from sampler_core import ParallelSampler
 import torch_sparse
+from torch_geometric.nn import GCNConv
 
 
 import time
@@ -679,6 +681,38 @@ class Patch_Encoding(nn.Module):
         return x
 
 
+class StructuralGNN(nn.Module):
+    """
+    一个两层的GNN，用于学习节点的结构化表示。
+    它在历史子图上运行，为所有节点生成嵌入。
+    """
+
+    def __init__(self, in_channels, hidden_channels, out_channels):
+        super().__init__()
+        self.conv1 = GCNConv(in_channels, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, out_channels)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.conv1.reset_parameters()
+        self.conv2.reset_parameters()
+
+    def forward(self, x: Tensor, adj: SparseTensor) -> Tensor:
+        """
+        参数:
+            x (Tensor): 图中所有节点的特征 [num_nodes, node_feat_dim]
+            adj (SparseTensor): 历史子图的邻接矩阵 (已被归一化)
+
+        返回:
+            Tensor: 所有节点的结构化嵌入 [num_nodes, out_channels]
+        """
+        x = self.conv1(x, adj)
+        x = F.relu(x)
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.conv2(x, adj)
+        return x
+
+
 ################################################################################################
 ################################################################################################
 ################################################################################################
@@ -727,7 +761,9 @@ class EdgePredictor_per_node(torch.nn.Module):
 
 
 class STHN_Interface(nn.Module):
-    def __init__(self, mlp_mixer_configs, edge_predictor_configs):
+    def __init__(
+        self, mlp_mixer_configs, edge_predictor_configs, gnn_configs
+    ):  # <-- 新增gnn_configs
         super(STHN_Interface, self).__init__()
 
         self.time_feats_dim = edge_predictor_configs["dim_in_time"]
@@ -735,6 +771,17 @@ class STHN_Interface(nn.Module):
 
         if self.time_feats_dim > 0:
             self.base_model = Patch_Encoding(**mlp_mixer_configs)
+
+        # +++ 新增：实例化结构化GNN +++
+        self.use_gnn = gnn_configs.get("use_gnn", False)
+        if self.node_feats_dim > 0 and self.use_gnn:
+            self.structural_gnn = StructuralGNN(
+                in_channels=self.node_feats_dim,
+                hidden_channels=gnn_configs["hidden_dim"],
+                out_channels=gnn_configs["out_dim"],
+            )
+            # 边预测器的节点维度输入现在是GNN的输出维度
+            edge_predictor_configs["dim_in_node"] = gnn_configs["out_dim"]
 
         self.edge_predictor = EdgePredictor_per_node(**edge_predictor_configs)
         self.creterion = nn.CrossEntropyLoss(reduction="mean")
@@ -745,8 +792,12 @@ class STHN_Interface(nn.Module):
             self.base_model.reset_parameters()
         self.edge_predictor.reset_parameters()
 
-    def forward(self, model_inputs, neg_samples, node_feats):
-        pred_pos, pred_neg = self.predict(model_inputs, neg_samples, node_feats)
+    def forward(
+        self, model_inputs, neg_samples, node_feats, adj=None, root_nodes=None
+    ):  # <-- 修改函数签名
+        pred_pos, pred_neg = self.predict(
+            model_inputs, neg_samples, node_feats, adj, root_nodes
+        )
         all_pred = torch.cat((pred_pos, pred_neg), dim=0)
         all_edge_label = torch.cat(
             (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
@@ -754,14 +805,38 @@ class STHN_Interface(nn.Module):
         loss = self.creterion(all_pred, all_edge_label).mean()
         return loss, all_pred, all_edge_label
 
-    def predict(self, model_inputs, neg_samples, node_feats):
-        if self.time_feats_dim > 0 and self.node_feats_dim == 0:
-            x = self.base_model(*model_inputs)
-        elif self.time_feats_dim > 0 and self.node_feats_dim > 0:
-            x = self.base_model(*model_inputs)
-            x = torch.cat([x, node_feats], dim=1)
-        elif self.time_feats_dim == 0 and self.node_feats_dim > 0:
-            x = node_feats
+    def predict(
+        self, model_inputs, neg_samples, node_feats, adj=None, root_nodes=None
+    ):  # <-- 修改函数签名
+        # 1. 计算时间特征 (如果需要)
+        time_x = None
+        if self.time_feats_dim > 0:
+            time_x = self.base_model(*model_inputs)
+
+        # 2. 计算结构特征 (如果需要)
+        structural_x = None
+        if self.node_feats_dim > 0:
+            if self.use_gnn:
+                logging.info("Using GNN for structural features")
+                # 使用新的GNN
+                assert (
+                    adj is not None and root_nodes is not None
+                ), "使用GNN时必须提供adj和root_nodes"
+                # GNN为所有节点计算嵌入
+                all_structural_feats = self.structural_gnn(node_feats, adj)
+                # 只选择当前批次所需的节点嵌入
+                structural_x = all_structural_feats[root_nodes]
+            else:
+                # 如果不使用GNN，则直接从原始特征中选择
+                structural_x = node_feats[root_nodes]
+
+        # 3. 组合特征
+        if self.time_feats_dim > 0 and self.node_feats_dim > 0:
+            x = torch.cat([time_x, structural_x], dim=1)
+        elif self.time_feats_dim > 0:
+            x = time_x
+        elif self.node_feats_dim > 0:
+            x = structural_x
         else:
             logging.info("Either time_feats_dim or node_feats_dim must larger than 0!")
 
