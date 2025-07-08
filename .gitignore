@@ -19,6 +19,7 @@ build
 dist
 LLM_CDHG.egg-info
 *.so
+.gitignore
 
 # Python files
 __pycache__/
