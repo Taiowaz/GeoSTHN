@@ -22,6 +22,7 @@ from utils.load_model import load_model
 from utils.load_data import load_all_data
 from utils.test import test
 from utils.log import setup_logger
+from utils.utils import generate_short_dir_name
 
 
 # 定义主函数
@@ -34,19 +35,20 @@ def main(args):
     exp_name = args.exper_name
     # 存放实验相关文件
     exper_dir = os.path.join(args.exper_base_dir, exp_name)
-    exper_time_dir = os.path.join(args.exper_base_dir, exp_name, timestamp)
-    checkpoint_dir = os.path.join(exper_time_dir, "checkpoint")
-    result_dir = os.path.join(exper_time_dir, "result")
+    args_str = generate_short_dir_name(args)
+    exper_args_dir = os.path.join(exper_dir, args_str)
+    checkpoint_dir = os.path.join(exper_args_dir, "checkpoint")
+    result_dir = os.path.join(exper_args_dir, "result")
     result_filename = f"{result_dir}/{args.model}_{args.dataset}_results.json"
     # 创建目录
     os.makedirs(exper_dir, exist_ok=True)
-    os.makedirs(exper_time_dir, exist_ok=True)
+    os.makedirs(exper_args_dir, exist_ok=True)
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(result_dir, exist_ok=True)
 
     # 2. 设置日志记录器
     # ---------------
-    log_file = f"{exper_time_dir}/{exp_name}.log"
+    log_file = f"{exper_args_dir}/{exp_name}.log"
     setup_logger(log_file)
     logging.info(f"开始实验: {exp_name}")
     logging.info(f"配置信息: {args}")
