@@ -29,11 +29,16 @@ def load_model(args):
             "window_size": args.window_size,  # 5
             "use_single_layer": False,  # False
         }
+        llm_configs = {
+            "dataset_name": "thgl-github-subset",
+            "relation_emb_dim": 1536,
+            "num_gnn_layers": 2,
+        }
 
     else:
         NotImplementedError()
 
-    model = STHN_Interface(mixer_configs, edge_predictor_configs)
+    model = STHN_Interface(mixer_configs, edge_predictor_configs, llm_configs)
     for k, v in model.named_parameters():
         logging.info(f"{k}: {v.requires_grad}")
 

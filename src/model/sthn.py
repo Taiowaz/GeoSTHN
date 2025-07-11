@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 from torch import Tensor
 import logging
-
+from torch_scatter import scatter_add
 
 from tqdm import tqdm
 from sampler_core import ParallelSampler
@@ -726,45 +726,200 @@ class EdgePredictor_per_node(torch.nn.Module):
         return self.out_fc(h_pos_edge), self.out_fc(h_neg_edge)
 
 
+# class STHN_Interface(nn.Module):
+#     def __init__(self, mlp_mixer_configs, edge_predictor_configs):
+#         super(STHN_Interface, self).__init__()
+
+#         self.time_feats_dim = edge_predictor_configs["dim_in_time"]
+#         self.node_feats_dim = edge_predictor_configs["dim_in_node"]
+
+#         if self.time_feats_dim > 0:
+#             self.base_model = Patch_Encoding(**mlp_mixer_configs)
+
+#         self.edge_predictor = EdgePredictor_per_node(**edge_predictor_configs)
+#         self.creterion = nn.CrossEntropyLoss(reduction="mean")
+#         self.reset_parameters()
+
+#     def reset_parameters(self):
+#         if self.time_feats_dim > 0:
+#             self.base_model.reset_parameters()
+#         self.edge_predictor.reset_parameters()
+
+#     def forward(self, model_inputs, neg_samples, node_feats):
+#         pred_pos, pred_neg = self.predict(model_inputs, neg_samples, node_feats)
+#         all_pred = torch.cat((pred_pos, pred_neg), dim=0)
+#         all_edge_label = torch.cat(
+#             (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
+#         )
+#         loss = self.creterion(all_pred, all_edge_label).mean()
+#         return loss, all_pred, all_edge_label
+
+#     def predict(self, model_inputs, neg_samples, node_feats):
+#         if self.time_feats_dim > 0 and self.node_feats_dim == 0:
+#             x = self.base_model(*model_inputs)
+#         elif self.time_feats_dim > 0 and self.node_feats_dim > 0:
+#             x = self.base_model(*model_inputs)
+#             x = torch.cat([x, node_feats], dim=1)
+#         elif self.time_feats_dim == 0 and self.node_feats_dim > 0:
+#             x = node_feats
+#         else:
+#             logging.info("Either time_feats_dim or node_feats_dim must larger than 0!")
+
+#         pred_pos, pred_neg = self.edge_predictor(x, neg_samples=neg_samples)
+#         return pred_pos, pred_neg
+
+
 class STHN_Interface(nn.Module):
-    def __init__(self, mlp_mixer_configs, edge_predictor_configs):
+    def __init__(
+        self,
+        mlp_mixer_configs: dict,
+        edge_predictor_configs: dict,
+        llm_rgcn_configs: Optional[dict] = None,
+    ):
+        """
+        [重大修改] __init__ 函数现在接收一个额外的 `llm_rgcn_configs` 字典。
+        如果提供了这个字典，模型将以“增强模式”运行；否则，将以后向兼容的“原始模式”运行。
+
+        `llm_rgcn_configs` 字典应包含:
+            - 'dataset_name' (str): 用于定位LLM嵌入文件。
+            - 'relation_emb_dim' (int): LLM关系嵌入的维度。
+            - 'num_gnn_layers' (int): GNN层数。
+        """
         super(STHN_Interface, self).__init__()
 
+        # --- 原始模块初始化 ---
         self.time_feats_dim = edge_predictor_configs["dim_in_time"]
         self.node_feats_dim = edge_predictor_configs["dim_in_node"]
-
         if self.time_feats_dim > 0:
             self.base_model = Patch_Encoding(**mlp_mixer_configs)
 
-        self.edge_predictor = EdgePredictor_per_node(**edge_predictor_configs)
+        # --- [新增] 根据是否传入llm_rgcn_configs来决定运行模式 ---
+        self.enhanced_mode = llm_rgcn_configs is not None
+
+        if self.enhanced_mode:
+            print("INFO: STHN_Interface 正在以 [LLM增强模式] 初始化...")
+            temporal_out_dim = mlp_mixer_configs.get("out_channels")
+
+            # Part 1: 加载LLM知识资产
+            relation_emb_dim = llm_rgcn_configs["relation_emb_dim"]
+            dataset_name = llm_rgcn_configs["dataset_name"]
+            relation_emb_path = f'tgb/DATA/{dataset_name.replace("-", "_")}/relation_embs_emb{relation_emb_dim}.pt'
+            if not os.path.exists(relation_emb_path):
+                raise FileNotFoundError(
+                    f"错误: 关系嵌入文件未找到! 请先运行第一步的脚本。\n路径: {relation_emb_path}"
+                )
+
+            relation_embs_list = torch.load(relation_emb_path, map_location="cpu")
+            relation_embs_tensor = torch.stack(relation_embs_list, dim=0)
+            self.register_buffer("relation_embs", relation_embs_tensor)
+
+            # Part 2: 初始化GNN层
+            num_gnn_layers = llm_rgcn_configs.get("num_gnn_layers", 2)
+            self.gnn_layers = nn.ModuleList()
+            self.gnn_layers.append(
+                LLM_Enhanced_RGCNConv(
+                    temporal_out_dim, temporal_out_dim, relation_emb_dim
+                )
+            )
+            for _ in range(num_gnn_layers - 1):
+                self.gnn_layers.append(
+                    LLM_Enhanced_RGCNConv(
+                        temporal_out_dim, temporal_out_dim, relation_emb_dim
+                    )
+                )
+
+            # Part 3: 初始化融合层和修改后的预测器
+            self.fusion_norm = nn.LayerNorm(temporal_out_dim)
+
+            final_pred_configs = edge_predictor_configs.copy()
+            final_pred_configs["dim_in_time"] = temporal_out_dim
+            final_pred_configs["dim_in_node"] = 0  # 最终特征是融合后的单一向量
+            self.edge_predictor = EdgePredictor_per_node(**final_pred_configs)
+
+        else:
+            print("INFO: STHN_Interface 正在以 [原始模式] 初始化...")
+            # 在原始模式下，一切保持原样
+            self.edge_predictor = EdgePredictor_per_node(**edge_predictor_configs)
+
         self.creterion = nn.CrossEntropyLoss(reduction="mean")
         self.reset_parameters()
 
     def reset_parameters(self):
-        if self.time_feats_dim > 0:
+        if hasattr(self, "base_model"):
             self.base_model.reset_parameters()
+        if self.enhanced_mode:
+            for layer in self.gnn_layers:
+                layer.reset_parameters()
+            self.fusion_norm.reset_parameters()
         self.edge_predictor.reset_parameters()
 
-    def forward(self, model_inputs, neg_samples, node_feats):
-        pred_pos, pred_neg = self.predict(model_inputs, neg_samples, node_feats)
-        all_pred = torch.cat((pred_pos, pred_neg), dim=0)
-        all_edge_label = torch.cat(
-            (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
+    def forward(
+        self,
+        model_inputs,
+        neg_samples,
+        node_feats,
+        structural_inputs: Optional[Tuple] = None,
+    ):
+        """
+        [修改] forward函数签名保持不变，但在末尾新增了一个可选参数 `structural_inputs`。
+        """
+        pred_pos, pred_neg = self.predict(
+            model_inputs, neg_samples, node_feats, structural_inputs
         )
-        loss = self.creterion(all_pred, all_edge_label).mean()
+
+        # --- 输出格式与原始forward完全一致 ---
+        all_pred = torch.cat((pred_pos, pred_neg), dim=0)
+        # 假设是二分类链接预测
+        pos_labels = torch.ones(pred_pos.shape[0], device=pred_pos.device)
+        neg_labels = torch.zeros(pred_neg.shape[0], device=pred_neg.device)
+        all_edge_label = torch.cat([pos_labels, neg_labels], dim=0)
+
+        loss = self.creterion(all_pred.squeeze(), all_edge_label)
         return loss, all_pred, all_edge_label
 
-    def predict(self, model_inputs, neg_samples, node_feats):
-        if self.time_feats_dim > 0 and self.node_feats_dim == 0:
-            x = self.base_model(*model_inputs)
-        elif self.time_feats_dim > 0 and self.node_feats_dim > 0:
-            x = self.base_model(*model_inputs)
-            x = torch.cat([x, node_feats], dim=1)
-        elif self.time_feats_dim == 0 and self.node_feats_dim > 0:
-            x = node_feats
-        else:
-            logging.info("Either time_feats_dim or node_feats_dim must larger than 0!")
+    def predict(
+        self,
+        model_inputs,
+        neg_samples,
+        node_feats,
+        structural_inputs: Optional[Tuple] = None,
+    ):
+        """
+        [修改] predict函数同样新增了 `structural_inputs`。
+        内部逻辑会根据是否为增强模式进行切换。
+        """
+        if self.enhanced_mode:
+            if structural_inputs is None:
+                raise ValueError(
+                    "增强模式需要提供 structural_inputs (edge_index, edge_type)!"
+                )
 
+            # --- 新的增强数据流 ---
+            # 1. 时序编码
+            h_temporal = self.base_model(*model_inputs)
+            # 2. GNN增强
+            edge_index, edge_type = structural_inputs
+            h_structural = h_temporal
+            for layer in self.gnn_layers:
+                h_structural = layer(
+                    h_structural, edge_index, edge_type, self.relation_embs
+                )
+            # 3. 融合
+            x = self.fusion_norm(h_temporal + h_structural)
+
+        else:
+            # --- 保持原始数据流不变 ---
+            if self.time_feats_dim > 0 and self.node_feats_dim == 0:
+                x = self.base_model(*model_inputs)
+            elif self.time_feats_dim > 0 and self.node_feats_dim > 0:
+                x = self.base_model(*model_inputs)
+                x = torch.cat([x, node_feats], dim=1)
+            elif self.time_feats_dim == 0 and self.node_feats_dim > 0:
+                x = node_feats
+            else:
+                raise ValueError("原始模式下，time_feats_dim或node_feats_dim必须大于0!")
+
+        # 4. 最终预测 (两种模式共用)
         pred_pos, pred_neg = self.edge_predictor(x, neg_samples=neg_samples)
         return pred_pos, pred_neg
 
@@ -814,3 +969,94 @@ class Multiclass_Interface(nn.Module):
 
         pred_pos, pred_neg = self.edge_predictor(x, neg_samples=neg_samples)
         return pred_pos, pred_neg
+
+
+class LLM_Enhanced_RGCNConv(nn.Module):
+    """
+    一个由LLM增强的关系图卷积网络层 (LLM-Enhanced Relational Graph Convolutional Network Layer)。
+
+    它在进行消息传递时，会将源节点的特征与连接边的“LLM关系嵌入”进行拼接，
+    从而使得传递的消息同时包含结构信息和丰富的语义信息。
+    """
+
+    def __init__(self, in_channels: int, out_channels: int, relation_emb_dim: int):
+        """
+        初始化GNN层。
+
+        Args:
+            in_channels (int): 输入节点特征的维度。
+            out_channels (int): 输出节点特征的维度。
+            relation_emb_dim (int): LLM生成的关系嵌入的维度 (例如 1536)。
+        """
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        # 核心：一个MLP，用于处理拼接后的向量 [节点特征, LLM关系嵌入]
+        # 它的输入维度是 in_channels + relation_emb_dim
+        self.message_mlp = nn.Sequential(
+            nn.Linear(in_channels + relation_emb_dim, in_channels * 2),
+            nn.ReLU(),
+            nn.Linear(in_channels * 2, out_channels),
+        )
+
+        # 节点自身信息更新的线性层（用于GNN中的自环 self-loop）
+        self.self_loop_mlp = nn.Linear(in_channels, out_channels)
+
+        # 添加归一化层以稳定训练
+        self.norm = nn.LayerNorm(out_channels)
+        self.activation = nn.ReLU()
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_type: torch.Tensor,
+        relation_embs_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        执行一次前向传播（消息传递和聚合）。
+
+        Args:
+            x (torch.Tensor): 节点特征张量, shape [num_nodes, in_channels]
+            edge_index (torch.Tensor): 图的边索引 (COO格式), shape [2, num_edges]
+            edge_type (torch.Tensor): 每条边的类型ID, shape [num_edges]
+            relation_embs_tensor (torch.Tensor): 所有关系类型的LLM嵌入, shape [num_relation_types, relation_emb_dim]
+
+        Returns:
+            torch.Tensor: 更新后的节点特征张量, shape [num_nodes, out_channels]
+        """
+        # 从边索引中获取源节点和目标节点
+        source_nodes, dest_nodes = edge_index
+
+        # 1. 根据edge_type(边的类型ID)从我们准备的资产中查找每条边对应的关系嵌入
+        # shape: [num_edges, relation_emb_dim]
+        edge_relation_embs = relation_embs_tensor[edge_type]
+
+        # 2. 获取构成每条边的“源节点”的特征
+        # shape: [num_edges, in_channels]
+        source_node_feats = x[source_nodes]
+
+        # 3. 【核心】将源节点特征和关系嵌入进行拼接。
+        # 这一步就是奇迹发生的地方。我们将节点的纯粹的动态特征与边的纯粹的语义特征（来自LLM）结合在了一起。
+        # shape: [num_edges, in_channels + relation_emb_dim]
+        message_inputs = torch.cat([source_node_feats, edge_relation_embs], dim=-1)
+
+        # 4. 将拼接后的向量通过MLP，生成最终要传递的信息 (message)
+        # shape: [num_edges, out_channels]
+        messages = self.message_mlp(message_inputs)
+
+        # 5. 使用 scatter_add 高效地将所有发往同一目标节点的信息相加
+        # shape: [num_nodes, out_channels]
+        aggregated_messages = scatter_add(
+            messages, dest_nodes, dim=0, dim_size=x.size(0)
+        )
+
+        # 6. 更新节点表示：聚合的邻居信息 + 自身信息变换
+        # W_0 * h_i + sum(W_r * h_j)
+        out = self.self_loop_mlp(x) + aggregated_messages
+
+        # 7. 应用归一化和激活函数，得到最终输出
+        out = self.activation(self.norm(out))
+
+        return out
