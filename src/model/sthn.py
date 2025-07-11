@@ -6,7 +6,7 @@ import numpy as np
 from torch import Tensor
 import logging
 from torch_scatter import scatter_add
-
+from typing import Tuple
 from tqdm import tqdm
 from sampler_core import ParallelSampler
 import torch_sparse
@@ -1007,6 +1007,19 @@ class LLM_Enhanced_RGCNConv(nn.Module):
         self.norm = nn.LayerNorm(out_channels)
         self.activation = nn.ReLU()
 
+    def reset_parameters(self):
+        """重置此模块内部所有可学习层的参数。"""
+        # 遍历并重置 message_mlp 中的所有线性层
+        for layer in self.message_mlp:
+            if hasattr(layer, "reset_parameters"):
+                layer.reset_parameters()
+
+        # 重置 self_loop_mlp
+        self.self_loop_mlp.reset_parameters()
+
+        # 重置 LayerNorm 层
+        self.norm.reset_parameters()
+
     def forward(
         self,
         x: torch.Tensor,
@@ -1035,6 +1048,9 @@ class LLM_Enhanced_RGCNConv(nn.Module):
 
         # 2. 获取构成每条边的“源节点”的特征
         # shape: [num_edges, in_channels]
+        print("source_node", source_nodes.max(), source_nodes.min(), source_nodes.shape)
+        print("dest_node", dest_nodes.max(), dest_nodes.min(), dest_nodes.shape)
+        print("x", x.shape)
         source_node_feats = x[source_nodes]
 
         # 3. 【核心】将源节点特征和关系嵌入进行拼接。

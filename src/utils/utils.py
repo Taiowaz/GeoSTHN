@@ -90,7 +90,6 @@ def generate_short_dir_name(args):
         f"ne{args.node_feats_as_edge_feats}",
         f"ie{args.ignore_edge_feats}",
         f"on{args.use_onehot_node_feats}",
-        f"nt{args.use_node_type_as_feats}",
         f"tf{args.use_type_feats}",
         f"gs{args.use_graph_structure}",
         f"stg{args.structure_time_gap}",

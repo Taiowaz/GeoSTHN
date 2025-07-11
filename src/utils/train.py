@@ -123,7 +123,19 @@ def get_inputs_for_ind(
             torch.tensor(all_inds).long(),
             torch.from_numpy(subgraph_edge_type).to(args.device),
         ]
-    return inputs, subgraph_node_feats, cur_inds
+        # 当前批次所有边类型，一个张量
+    edge_type = subgraph_edge_feats.argmax(dim=1)
+    # 提取 row 和 col 数据
+    row_data = subgraph_data["row"]
+    col_data = subgraph_data["col"]
+
+    # 转换为 PyTorch 张量
+    row_tensor = torch.from_numpy(row_data).long()
+    col_tensor = torch.from_numpy(col_data).long()
+
+    # 当前批次所有交互,一个张量
+    edge_index = torch.stack([row_tensor, col_tensor], dim=0)
+    return inputs, subgraph_node_feats, cur_inds, (edge_index, edge_type)
 
 
 def run(
@@ -175,7 +187,7 @@ def run(
 
     for ind in range(len(train_loader)):
         ###################################################
-        inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
+        inputs, subgraph_node_feats, cur_inds, structural_inputs = get_inputs_for_ind(
             subgraphs,
             mode,
             cached_neg_samples,
@@ -191,7 +203,9 @@ def run(
         start_time = time.time()
         # 将inputs, neg_samples, subgraph_node_feats转为张量
 
-        loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
+        loss, pred, edge_label = model(
+            inputs, neg_samples, subgraph_node_feats, structural_inputs
+        )
         if mode == "train" and optimizer != None:
             optimizer.zero_grad()
             if isinstance(loss, torch.Tensor) and loss.dim() > 0:
@@ -200,8 +214,8 @@ def run(
             optimizer.step()
         time_epoch += time.time() - start_time
 
-        batch_auroc = MLAUROC.update(pred, edge_label.to(torch.int))
-        batch_auprc = MLAUPRC.update(pred, edge_label.to(torch.int))
+        batch_auroc = MLAUROC.update(pred.squeeze(), edge_label.to(torch.int))
+        batch_auprc = MLAUPRC.update(pred.squeeze(), edge_label.to(torch.int))
         if isinstance(loss, torch.Tensor):
             loss_lst.append(loss.mean().item())
         else:
