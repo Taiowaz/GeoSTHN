@@ -67,7 +67,8 @@ def get_inputs_for_ind(
         )
 
         subgraph_data = [subgraph_data_list[i] for i in mini_batch_inds]
-    # 为什么要有这一步骤
+    node_index_map = get_node_index_map(subgraph_data)
+    # 对于该批次的所有子图进行整合
     subgraph_data = construct_mini_batch_giant_graph(subgraph_data, args.max_edges)
 
     # raw edge feats
@@ -128,14 +129,27 @@ def get_inputs_for_ind(
     # 提取 row 和 col 数据
     row_data = subgraph_data["row"]
     col_data = subgraph_data["col"]
-
+    # 对row_data使用edge_index_map进行映射
+    row_data = np.vectorize(node_index_map.get)(row_data)
+    # 找出 row_data 中不为 None 的索引
+    valid_indices = np.where(row_data != None)[0]  # 注意这里使用 != None 来判断
+    # 根据有效索引过滤 row_data 和 col_data
+    row_data = row_data[valid_indices]
+    col_data = col_data[valid_indices]
+    row_data = np.array(row_data, dtype=np.int64)
     # 转换为 PyTorch 张量
     row_tensor = torch.from_numpy(row_data).long()
     col_tensor = torch.from_numpy(col_data).long()
 
     # 当前批次所有交互,一个张量
     edge_index = torch.stack([row_tensor, col_tensor], dim=0)
-    return inputs, subgraph_node_feats, cur_inds, (edge_index, edge_type)
+
+    return (
+        inputs,
+        subgraph_node_feats,
+        cur_inds,
+        (edge_index, edge_type),
+    )
 
 
 def run(
@@ -422,3 +436,23 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
 
     # 返回计算得到的 SIGN 特征张量
     return output_feats
+
+
+def get_node_index_map(subgraph_data):
+    """
+    从子图数据中提取节点索引映射。
+
+    参数:
+    subgraph_data (list): 包含子图数据的列表，每个子图数据是一个字典。
+
+    返回:
+    dict: 包含边索引映射的字典，键为边类型，值为对应的边索引张量。
+    """
+    # 初始化一个空字典，用于存储节点索引映射
+    node_index_map = {}
+
+    # 遍历每个子图数据
+    for i, subgraph in enumerate(subgraph_data):
+        node_index_map[subgraph["root_node"]] = i
+
+    return node_index_map

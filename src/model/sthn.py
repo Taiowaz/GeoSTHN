@@ -778,7 +778,7 @@ class STHN_Interface(nn.Module):
     ):
         """
         [重大修改] __init__ 函数现在接收一个额外的 `llm_rgcn_configs` 字典。
-        如果提供了这个字典，模型将以“增强模式”运行；否则，将以后向兼容的“原始模式”运行。
+        如果提供了这个字典，模型将以"增强模式"运行；否则，将以后向兼容的"原始模式"运行。
 
         `llm_rgcn_configs` 字典应包含:
             - 'dataset_name' (str): 用于定位LLM嵌入文件。
@@ -902,7 +902,10 @@ class STHN_Interface(nn.Module):
             h_structural = h_temporal
             for layer in self.gnn_layers:
                 h_structural = layer(
-                    h_structural, edge_index, edge_type, self.relation_embs
+                    h_structural,
+                    edge_index,
+                    edge_type,
+                    self.relation_embs,
                 )
             # 3. 融合
             x = self.fusion_norm(h_temporal + h_structural)
@@ -975,7 +978,7 @@ class LLM_Enhanced_RGCNConv(nn.Module):
     """
     一个由LLM增强的关系图卷积网络层 (LLM-Enhanced Relational Graph Convolutional Network Layer)。
 
-    它在进行消息传递时，会将源节点的特征与连接边的“LLM关系嵌入”进行拼接，
+    它在进行消息传递时，会将源节点的特征与连接边的"LLM关系嵌入"进行拼接，
     从而使得传递的消息同时包含结构信息和丰富的语义信息。
     """
 
@@ -1046,16 +1049,15 @@ class LLM_Enhanced_RGCNConv(nn.Module):
         # shape: [num_edges, relation_emb_dim]
         edge_relation_embs = relation_embs_tensor[edge_type]
 
-        # 2. 获取构成每条边的“源节点”的特征
+        # 2. 获取构成每条边的"源节点"的特征
         # shape: [num_edges, in_channels]
-        print("source_node", source_nodes.max(), source_nodes.min(), source_nodes.shape)
-        print("dest_node", dest_nodes.max(), dest_nodes.min(), dest_nodes.shape)
-        print("x", x.shape)
         source_node_feats = x[source_nodes]
 
-        # 3. 【核心】将源节点特征和关系嵌入进行拼接。
+        # 3. [核心]将源节点特征和关系嵌入进行拼接。
         # 这一步就是奇迹发生的地方。我们将节点的纯粹的动态特征与边的纯粹的语义特征（来自LLM）结合在了一起。
         # shape: [num_edges, in_channels + relation_emb_dim]
+        print("source_node_feats.shape:", source_node_feats.shape)
+        print("edge_relation_embs.shape:", edge_relation_embs.shape)
         message_inputs = torch.cat([source_node_feats, edge_relation_embs], dim=-1)
 
         # 4. 将拼接后的向量通过MLP，生成最终要传递的信息 (message)
