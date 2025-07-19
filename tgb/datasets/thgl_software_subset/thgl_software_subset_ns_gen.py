@@ -1,9 +1,4 @@
 import time
-import sys
-import os
-
-sys.path.append("/root/LLM-CDHG")
-os.chdir("/root/LLM-CDHG")
 from tgb.linkproppred.thg_negative_generator import THGNegativeEdgeGenerator
 from tgb.linkproppred.dataset_pyg import PyGLinkPropPredDataset
 

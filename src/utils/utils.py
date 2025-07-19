@@ -58,3 +58,42 @@ def evaluate_mrr(pred, neg_samples):
     # 计算平均指标值
     average_metric = np.mean(metric_values)
     return average_metric
+
+def generate_short_dir_name(args):
+    # 简化参数名，生成短目录名
+    dir_name_parts = [
+        f"ep{args.num_epoch}",
+        f"s{args.seed}",
+        f"nr{args.num_run}",
+        f"ds{args.dataset}",
+        f"gpu{args.use_gpu}",
+        f"dev{args.device}",
+        f"bs{args.batch_size}",
+        f"me{args.max_edges}",
+        f"et{args.num_edgeType}",
+        f"lr{args.lr}",
+        f"wd{args.weight_decay}",
+        f"pc{args.predict_class}",
+        f"ws{args.window_size}",
+        f"do{args.dropout}",
+        f"ns{args.neg_samples}",
+        f"ens{args.extra_neg_samples}",
+        f"nn{args.num_neighbors}",
+        f"cef{args.channel_expansion_factor}",
+        f"sh{args.sampled_num_hops}",
+        f"td{args.time_dims}",
+        f"hd{args.hidden_dims}",
+        f"nl{args.num_layers}",
+        f"cdl{args.check_data_leakage}",
+        f"in{args.ignore_node_feats}",
+        f"ne{args.node_feats_as_edge_feats}",
+        f"ie{args.ignore_edge_feats}",
+        f"on{args.use_onehot_node_feats}",
+        f"tf{args.use_type_feats}",
+        f"gs{args.use_graph_structure}",
+        f"stg{args.structure_time_gap}",
+        f"shp{args.structure_hops}",
+        f"nc{args.use_node_cls}",
+        f"cs{args.use_cached_subgraph}",
+    ]
+    return "_".join(dir_name_parts)

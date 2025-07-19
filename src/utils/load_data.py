@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import itertools
-from tgb.linkproppred.dataset_pyg import PyGLinkPropPredDataset
 import torch
 import logging
 
@@ -57,14 +56,18 @@ def load_graph(data):
 
     logging.info("saving...")
 
-    np.savez(
-        "/tmp/ext_full.npz",
+    class NpzDict:
+        def __init__(self, **arrays):
+            self.arrays = arrays
+        
+        def __getitem__(self, key):
+            return self.arrays[key]
+    g = NpzDict(
         indptr=ext_full_indptr,
         indices=ext_full_indices,
         ts=ext_full_ts,
-        eid=ext_full_eid,
+        eid=ext_full_eid
     )
-    g = np.load("/tmp/ext_full.npz")
     return g, df
 
 

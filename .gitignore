@@ -6,7 +6,7 @@ analyze
 exper/*
 temp
 tgb/DATA/*
-temp/
+tmp/
 graph_test
 
 # Log files
