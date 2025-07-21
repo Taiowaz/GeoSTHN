@@ -3,11 +3,18 @@ import logging
 
 
 def load_model(args):
+    motif_config_dict = {
+        3: 13,
+    }
     # get model
+    if args.use_motif_feats:
+        dim_in_node = args.node_feat_dims + motif_config_dict[args.motif_size]
+    else:
+        dim_in_node = args.node_feat_dims
     edge_predictor_configs = {
-        "dim_in_time": args.time_dims,  # 100
-        "dim_in_node": args.node_feat_dims,  # 0
-        "predict_class": 1 if not args.predict_class else args.num_edgeType + 1,  # 1
+        "dim_in_time": args.time_dims, 
+        "dim_in_node": dim_in_node,  
+        "predict_class": 1 if not args.predict_class else args.num_edgeType + 1,  
     }
     if args.model == "sthn":
         # !!!False!!!
@@ -15,7 +22,7 @@ def load_model(args):
             from src.model.sthn import Multiclass_Interface as STHN_Interface
         else:
             from src.model.sthn import STHN_Interface
-        from utils.train import link_pred_train
+        from src.train_test import link_pred_train
 
         mixer_configs = {
             "per_graph_size": args.max_edges,  # 50

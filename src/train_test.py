@@ -1,28 +1,16 @@
-"""
-Source: STHN link_pred_train_utils.py
-URL: https://github.com/celi52/STHN/blob/main/link_pred_train_utils.py
-
-Notes: I created a separate function for get_inputs_for_ind so that we can use it for TGB evaluation as well
-"""
-
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from typing import Optional
 import numpy as np
-from torch import Tensor
 import logging
-
-
 from tqdm import tqdm
-
-
 import time
 import copy
 from torch_sparse import SparseTensor
 from torchmetrics.classification import MulticlassAUROC, MulticlassAveragePrecision
 from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from sklearn.preprocessing import MinMaxScaler
+from src.utils.utils import evaluate_mrr
+from tgb.linkproppred.evaluate import Evaluator
+
 from src.utils.construct_subgraph import (
     get_random_inds,
     get_all_inds,
@@ -31,6 +19,7 @@ from src.utils.construct_subgraph import (
     pre_compute_subgraphs,
 )
 from src.utils.utils import row_norm
+from src.structure_enhence.motif import get_graph_motif_vectors_batch
 
 
 def get_inputs_for_ind(
@@ -41,6 +30,7 @@ def get_inputs_for_ind(
     node_feats,
     edge_feats,
     cur_df,
+    df_all,
     cur_inds,
     ind,
     args,
@@ -52,12 +42,12 @@ def get_inputs_for_ind(
         mini_batch_inds = get_random_inds(
             len(subgraph_data_list), cached_neg_samples, neg_samples
         )
-        subgraph_data = subgraphs.mini_batch(ind, mini_batch_inds)
+        subgraph_data_raw = subgraphs.mini_batch(ind, mini_batch_inds)
     elif mode in ["test", "tgb-val"]:
         assert cached_neg_samples == neg_samples
         subgraph_data_list = subgraphs[ind]
         mini_batch_inds = get_all_inds(len(subgraph_data_list), cached_neg_samples)
-        subgraph_data = [subgraph_data_list[i] for i in mini_batch_inds]
+        subgraph_data_raw = [subgraph_data_list[i] for i in mini_batch_inds]
     else:  # sthn valid
         # 获取的是子图数据
         subgraph_data_list = subgraphs[ind]
@@ -66,9 +56,9 @@ def get_inputs_for_ind(
             len(subgraph_data_list), cached_neg_samples, neg_samples
         )
 
-        subgraph_data = [subgraph_data_list[i] for i in mini_batch_inds]
-    # 为什么要有这一步骤
-    subgraph_data = construct_mini_batch_giant_graph(subgraph_data, args.max_edges)
+        subgraph_data_raw = [subgraph_data_list[i] for i in mini_batch_inds]
+    
+    subgraph_data = construct_mini_batch_giant_graph(subgraph_data_raw, args.max_edges)
 
     # raw edge feats
     subgraph_edge_feats = edge_feats[subgraph_data["eid"]]
@@ -123,6 +113,10 @@ def get_inputs_for_ind(
             torch.tensor(all_inds).long(),
             torch.from_numpy(subgraph_edge_type).to(args.device),
         ]
+
+    if args.use_motif_feats:
+        motif_features = get_graph_motif_vectors_batch(df_all, subgraph_data_raw, args).to(args.device)
+        subgraph_node_feats = torch.cat([subgraph_node_feats, motif_features], dim=1)
     return inputs, subgraph_node_feats, cur_inds
 
 
@@ -183,6 +177,7 @@ def run(
             node_feats,
             edge_feats,
             cur_df,
+            df, 
             cur_inds,
             ind,
             args,
@@ -408,3 +403,91 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
 
     # 返回计算得到的 SIGN 特征张量
     return output_feats
+
+
+def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_feats):
+    """Evaluate dynamic link prediction"""
+    model.eval()
+    logging.info(f"Starting {split_mode} phase...")
+
+    # Pre-compute subgraphs
+    test_subgraphs = pre_compute_subgraphs(
+        args,
+        g,
+        df,
+        mode="test" if split_mode == "test" else "valid",
+        negative_sampler=neg_sampler,
+        split_mode=split_mode,
+    )
+
+    # Get current dataframe based on split mode
+    if split_mode == "test":
+        cur_df = df[args.test_mask]
+    elif split_mode == "val":
+        cur_df = df[args.val_mask]
+
+    neg_samples = 20
+    cached_neg_samples = 20
+
+    # Create test loader
+    test_loader = cur_df.groupby(cur_df.index // args.batch_size)
+    pbar = tqdm(total=len(test_loader))
+    pbar.set_description(
+        "%s mode with negative samples %d ..." % (split_mode, neg_samples)
+    )
+
+    # Initialize variables
+    cur_inds = 0
+    evaluator = Evaluator(name=args.dataset)
+    perf_list = []
+
+    logging.info(f"Starting prediction for {split_mode} set...")
+
+    with torch.no_grad():
+        for ind in range(len(test_loader)):
+            # Get inputs for current batch
+            inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
+                test_subgraphs,
+                "test" if split_mode == "test" else "tgb-val",
+                cached_neg_samples,
+                neg_samples,
+                node_feats,
+                edge_feats,
+                cur_df,
+                df,
+                cur_inds,
+                ind,
+                args,
+            )
+
+            # Forward pass
+            loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
+            split = len(pred) // 2
+
+            # Evaluate and store results
+            perf_list.append(evaluate_mrr(pred, neg_samples))
+            pbar.update(1)
+
+            # Clear GPU cache periodically
+            if ind % 10 == 0 and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            # Log progress
+            if ind % 100 == 0:
+                logging.info(f"Processed {ind} batches...")
+
+    pbar.close()
+    logging.info(f"Completed prediction for {split_mode} set.")
+
+    # Calculate final metrics
+    perf_metrics_mean = float(np.mean(perf_list))
+    perf_metrics_std = float(np.std(perf_list))
+    logging.info(
+        f"{split_mode} results - {metric}: {perf_metrics_mean:.4f} ± {perf_metrics_std:.4f}"
+    )
+
+    # Clear memory
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return perf_metrics_mean, perf_metrics_std, perf_list
