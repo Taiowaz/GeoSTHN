@@ -19,7 +19,6 @@ from src.utils.construct_subgraph import (
     pre_compute_subgraphs,
 )
 from src.utils.utils import row_norm
-from src.structure_enhence.motif import get_graph_motif_vectors_batch
 
 
 def get_inputs_for_ind(
@@ -114,9 +113,6 @@ def get_inputs_for_ind(
             torch.from_numpy(subgraph_edge_type).to(args.device),
         ]
 
-    if args.use_motif_feats:
-        motif_features = get_graph_motif_vectors_batch(df_all, subgraph_data_raw, args).to(args.device)
-        subgraph_node_feats = torch.cat([subgraph_node_feats, motif_features], dim=1)
     return inputs, subgraph_node_feats, cur_inds
 
 
