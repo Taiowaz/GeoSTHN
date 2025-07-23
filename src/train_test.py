@@ -1,3 +1,5 @@
+from operator import ge
+from platform import node
 import torch
 import numpy as np
 import logging
@@ -10,6 +12,7 @@ from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from sklearn.preprocessing import MinMaxScaler
 from src.utils.utils import evaluate_mrr
 from tgb.linkproppred.evaluate import Evaluator
+import pandas as pd
 
 from src.utils.construct_subgraph import (
     get_random_inds,
@@ -20,6 +23,7 @@ from src.utils.construct_subgraph import (
 )
 from src.utils.utils import row_norm
 from src.structure_enhence.motif import get_graph_motif_vectors_batch
+from src.structure_enhence.metapath import get_structural_node_features_batch
 
 
 def get_inputs_for_ind(
@@ -116,7 +120,14 @@ def get_inputs_for_ind(
 
     if args.use_motif_feats:
         motif_features = get_graph_motif_vectors_batch(df_all, subgraph_data_raw, args).to(args.device)
-        subgraph_node_feats = torch.cat([subgraph_node_feats, motif_features], dim=1)
+        subgraph_node_feats = torch.cat([subgraph_node_feats, motif_metapath_features], dim=1)
+    elif args.use_motif_metapath_feats:
+        motif_metapath_features = get_structural_node_features_batch(
+            df_all, subgraph_data_raw, args
+        )
+        if motif_metapath_features.sum()!= 0:
+            print("motif_metapath_features.shape", motif_metapath_features.sum())
+        subgraph_node_feats = torch.cat([subgraph_node_feats, motif_metapath_features], dim=1)
     return inputs, subgraph_node_feats, cur_inds
 
 
@@ -491,3 +502,6 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
         torch.cuda.empty_cache()
 
     return perf_metrics_mean, perf_metrics_std, perf_list
+
+
+

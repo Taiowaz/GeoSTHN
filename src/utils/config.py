@@ -54,6 +54,7 @@ def get_args(args=None):
     parser.add_argument("--structure_time_gap", type=int, default=2000)
     parser.add_argument("--structure_hops", type=int, default=1)
     parser.add_argument("--use_motif_feats", action="store_true", default=False)
+    parser.add_argument("--use_motif_metapath_feats", action="store_true", default=False)
     parser.add_argument("--motif_size", type=int, default=3)
 
     parser.add_argument("--use_node_cls", action="store_true")

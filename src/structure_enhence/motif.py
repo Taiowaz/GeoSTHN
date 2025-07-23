@@ -79,4 +79,65 @@ def get_graph_motif_vectors_batch(df, subgraph_dict_batch, args):
         node_vecs.append(torch.from_numpy(vec))
         
     # 6. 将向量列表堆叠成一个Tensor
-    return torch.stack(node_vecs)
+    return torch.stack(node_vecs).to(args.device)
+
+
+
+def calculate_13d_motif_vector_for_node(
+    root_node: int, 
+    local_subgraph_df: pd.DataFrame
+) -> np.ndarray:
+    # 1. 从DataFrame构建有向图
+    G = nx.DiGraph()
+    # 确保图中包含根节点，即使它可能是孤立的
+    G.add_node(root_node) 
+    
+    if not local_subgraph_df.empty:
+        src = local_subgraph_df.src.values
+        dst = local_subgraph_df.dst.values
+        G.add_edges_from(zip(src, dst))
+
+    # 初始化13维特征向量
+    vec = np.zeros(13, dtype=np.float32)
+    
+    # 如果节点数不足3，无法形成三节点模体
+    if len(G.nodes()) < 3:
+        return vec
+
+    # 2. 遍历所有包含root_node的3节点组合
+    # 先获取除root_node外的其他节点
+    other_nodes = list(G.nodes())
+    other_nodes.remove(root_node)
+
+    # 从其他节点中选2个，与root_node组成三元组
+    if len(other_nodes) < 2:
+        return vec
+
+    for node_b, node_c in itertools.combinations(other_nodes, 2):
+        nodes_combo = (root_node, node_b, node_c)
+        subg = G.subgraph(nodes_combo)
+        
+        # 3. 进行图同构匹配
+        for m_id, motif_graph in enumerate(MOTIF_LIST):
+            if nx.is_isomorphic(subg, motif_graph):
+                vec[m_id] += 1
+                break  # 找到一个匹配后就跳出，避免重复计数
+    
+    return vec
+
+
+def get_rich_edge_motif_strength(
+    u: int, 
+    v: int, 
+    local_subgraph_df: pd.DataFrame
+) -> float:
+    # 1. 分别为 u 和 v 计算13维模体向量
+    # 注意：这里假设 u 和 v 的局部子图是相同的。
+    # 在实际应用中，local_subgraph_df 应该是围绕 u 和 v 的并集邻居构建的。
+    vec_u = calculate_13d_motif_vector_for_node(u, local_subgraph_df)
+    vec_v = calculate_13d_motif_vector_for_node(v, local_subgraph_df)
+    
+    # 2. 计算向量点积作为强度分数
+    strength_score = np.dot(vec_u, vec_v)
+    
+    return float(strength_score)
