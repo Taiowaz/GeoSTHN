@@ -33,7 +33,18 @@ def convert_df_to_adj_list(local_subgraph_df: pd.DataFrame) -> defaultdict:
         adj_list[src].append((dst, time, label))
     return adj_list
 
-
+def convert_df_to_adj_list_undirected(local_subgraph_df: pd.DataFrame) -> defaultdict:
+    """
+    修改版：创建无向图的邻接表，允许双向遍历。
+    """
+    adj_list = defaultdict(list)
+    for _, row in local_subgraph_df.iterrows():
+        src, dst, time, label = row['src'], row['dst'], row['time'], row['label']
+        # 添加正向边
+        adj_list[src].append((dst, time, label))
+        # 添加反向边，让图的遍历更灵活
+        adj_list[dst].append((src, time, label))
+    return adj_list
 
 def find_paths_from_root(
     root_node: int,
@@ -70,9 +81,6 @@ def find_paths_from_root(
 
 
 def aggregate_features_from_paths_rich(found_paths: list, local_subgraph_df: pd.DataFrame) -> list:
-    """
-    这是任务三函数的升级版，它调用新的强度计算函数。
-    """
     path_count = len(found_paths)
     
     total_rich_motif_strength = 0
@@ -103,7 +111,7 @@ def get_structural_node_features_batch(
         
         # 2. 构建该节点的局部子图
         local_subgraph_df = df.iloc[subgraph_dict['eid']]
-        adj_list = convert_df_to_adj_list(local_subgraph_df)
+        adj_list = convert_df_to_adj_list_undirected(local_subgraph_df)
         
         node_structural_features = []
         # 3. 遍历所有元路径，为该节点计算特征
@@ -111,9 +119,6 @@ def get_structural_node_features_batch(
             node_structural_features = [0.0, 0.0] # 默认特征
         else:
             for path_name, path_def in meta_paths_to_extract.items():
-                
-                # ▼▼▼▼▼【核心逻辑修改点】▼▼▼▼▼
-                # 调用新的、以自我为中心的路径搜索函数
                 found_paths = find_paths_from_root(
                     root_node=root_node,
                     meta_path_def=path_def,
@@ -121,7 +126,6 @@ def get_structural_node_features_batch(
                     node_type_map=node_type_map
                 )
                 
-                # 特征聚合逻辑不变，依然是计算路径数和平均模体强度
                 features = aggregate_features_from_paths_rich(found_paths, local_subgraph_df)
                 
                 node_structural_features.extend(features)
