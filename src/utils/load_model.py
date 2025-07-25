@@ -11,9 +11,9 @@ def load_model(args):
         dim_in_node = args.node_feat_dims + motif_config_dict[args.motif_size]
     elif args.use_motif_metapath_feats:
         if args.dataset in ["thgl-github-subset","thgl-software-subset"]:
-            dim_in_node = args.node_feat_dims + 8
+            dim_in_node = args.node_feat_dims + 14
         else:
-            dim_in_node = args.node_feat_dims + 4
+            dim_in_node = args.node_feat_dims + 6
     else:
         dim_in_node = args.node_feat_dims
     edge_predictor_configs = {

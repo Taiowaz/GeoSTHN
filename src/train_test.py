@@ -125,9 +125,9 @@ def get_inputs_for_ind(
         motif_metapath_features = get_structural_node_features_batch(
             df_all, subgraph_data_raw, args
         )
-        print("motif_metapath_features.shape", motif_metapath_features.shape)
-        if motif_metapath_features.sum()!= 0:
-            print("motif_metapath_features.shape", motif_metapath_features.sum())
+        # print("motif_metapath_features.shape", motif_metapath_features.shape)
+        # if motif_metapath_features.sum()!= 0:
+        #     print("motif_metapath_features.shape", motif_metapath_features.sum())
         subgraph_node_feats = torch.cat([subgraph_node_feats, motif_metapath_features], dim=1)
     return inputs, subgraph_node_feats, cur_inds
 

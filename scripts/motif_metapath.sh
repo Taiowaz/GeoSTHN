@@ -1,7 +1,7 @@
 run_python="/private/miniconda3/envs/llm-cdhg/bin/python"
 run_file="/private/LLM-CDHG/src/main.py"
 
-exper_name="motif-metapath"
+exper_name="motif-metapath-morepaths"
 common_args="
     --use_onehot_node_feats
     --use_graph_structure

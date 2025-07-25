@@ -5,24 +5,39 @@ from src.structure_enhence.motif import get_rich_edge_motif_strength
 
 META_PATHS_CONFIG = {
     "thgl-github-subset": {
+        # 原有长路径
         "URU": [2, 1, 2],
         "UIU": [2, 0, 2],
         "UPRRU": [2, 3, 1, 2],
-        "RUR": [1, 2, 1]
+        "RUR": [1, 2, 1],
+        # 新增短路径
+        "UR_short": [2, 1],    # 含义: 用户-仓库 (用户贡献过的仓库)
+        "UI_short": [2, 0],    # 含义: 用户-Issue (用户参与过的Issue)
+        "UPR_short": [2, 3],   # 含义: 用户-PR (用户提交过的PR)
     },
     "thgl-software-subset": {
+        # 与github类似
         "URU": [2, 1, 2],
         "UIU": [2, 0, 2],
         "UPRRU": [2, 3, 1, 2],
-        "RUR": [1, 2, 1]
+        "RUR": [1, 2, 1],
+        "UR_short": [2, 1],
+        "UI_short": [2, 0],
+        "UPR_short": [2, 3],
     },
     "thgl-myket-subset": {
+        # 原有路径
         "UAU": [0, 1, 0],
-        "AUA": [1, 0, 1]
+        "AUA": [1, 0, 1],
+        # 新增短路径
+        "UA_short": [0, 1],     # 含义: 用户-App (用户使用过的App)
     },
     "thgl-forum-subset": {
+        # 原有路径
         "UBU": [0, 1, 0],
-        "BUB": [1, 0, 1]
+        "BUB": [1, 0, 1],
+        # 新增短路径
+        "UB_short": [0, 1],     # 含义: 用户-帖子 (用户交互过的帖子)
     }
 }
 
