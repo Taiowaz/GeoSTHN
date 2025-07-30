@@ -120,7 +120,7 @@ def get_inputs_for_ind(
 
     if args.use_motif_feats:
         motif_features = get_graph_motif_vectors_batch(df_all, subgraph_data_raw, args).to(args.device)
-        subgraph_node_feats = torch.cat([subgraph_node_feats, motif_metapath_features], dim=1)
+        subgraph_node_feats = torch.cat([subgraph_node_feats, motif_features], dim=1)
     elif args.use_motif_metapath_feats:
         motif_metapath_features = get_structural_node_features_batch(
             df_all, subgraph_data_raw, args
