@@ -12,16 +12,6 @@ from sampler_core import ParallelSampler
 import torch_sparse
 
 
-import time
-import copy
-from torch_sparse import SparseTensor
-from torchmetrics.classification import MulticlassAUROC, MulticlassAveragePrecision
-from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
-from sklearn.preprocessing import MinMaxScaler
-import os
-import pickle
-
-
 def get_emb(sin_inp):
     """
     Gets a base embedding for one dimension with sin and cos intertwined
@@ -737,7 +727,8 @@ class STHN_Interface(nn.Module):
             self.base_model = Patch_Encoding(**mlp_mixer_configs)
 
         self.edge_predictor = EdgePredictor_per_node(**edge_predictor_configs)
-        self.creterion = nn.CrossEntropyLoss(reduction="mean")
+        # 二分类损失函数
+        self.criterion = nn.BCEWithLogitsLoss(reduction="mean")
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -751,7 +742,7 @@ class STHN_Interface(nn.Module):
         all_edge_label = torch.cat(
             (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
         )
-        loss = self.creterion(all_pred, all_edge_label).mean()
+        loss = self.criterion(all_pred, all_edge_label).mean()
         return loss, all_pred, all_edge_label
 
     def predict(self, model_inputs, neg_samples, node_feats):
@@ -780,7 +771,7 @@ class Multiclass_Interface(nn.Module):
             self.base_model = Patch_Encoding(**mlp_mixer_configs)
 
         self.edge_predictor = EdgePredictor_per_node(**edge_predictor_configs)
-        self.creterion = nn.CrossEntropyLoss(reduction="mean")
+        self.criterion = nn.CrossEntropyLoss(reduction="mean")
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -797,7 +788,7 @@ class Multiclass_Interface(nn.Module):
         all_edge_label = torch.squeeze(
             torch.cat((pos_edge_label, torch.zeros_like(pos_edge_label)), dim=0)
         )
-        loss = self.creterion(all_pred, all_edge_label).mean()
+        loss = self.criterion(all_pred, all_edge_label).mean()
 
         return loss, all_pred, all_edge_label
 
