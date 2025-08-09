@@ -1,0 +1,109 @@
+{
+  "RPUP": {
+    "pattern": [
+      1,
+      3,
+      2,
+      3
+    ],
+    "support": 11414,
+    "total_score": 3444.515086735588,
+    "description": "Repo-PR-User-PR"
+  },
+  "PUPR": {
+    "pattern": [
+      3,
+      2,
+      3,
+      1
+    ],
+    "support": 8285,
+    "total_score": 2505.825371152686,
+    "description": "PR-User-PR-Repo"
+  },
+  "PUP": {
+    "pattern": [
+      3,
+      2,
+      3
+    ],
+    "support": 6044,
+    "total_score": 1833.5249834546657,
+    "description": "PR-User-PR"
+  },
+  "UPRP": {
+    "pattern": [
+      2,
+      3,
+      1,
+      3
+    ],
+    "support": 3517,
+    "total_score": 1075.42831959056,
+    "description": "User-PR-Repo-PR"
+  },
+  "PRPU": {
+    "pattern": [
+      3,
+      1,
+      3,
+      2
+    ],
+    "support": 2567,
+    "total_score": 790.4612388001558,
+    "description": "PR-Repo-PR-User"
+  },
+  "UPUP": {
+    "pattern": [
+      2,
+      3,
+      2,
+      3
+    ],
+    "support": 1596,
+    "total_score": 499.12581453634084,
+    "description": "User-PR-User-PR"
+  },
+  "PRP": {
+    "pattern": [
+      3,
+      1,
+      3
+    ],
+    "support": 1421,
+    "total_score": 438.20540198909214,
+    "description": "PR-Repo-PR"
+  },
+  "UIRI": {
+    "pattern": [
+      2,
+      0,
+      1,
+      0
+    ],
+    "support": 1391,
+    "total_score": 437.6117900790798,
+    "description": "User-Issue-Repo-Issue"
+  },
+  "PUPU": {
+    "pattern": [
+      3,
+      2,
+      3,
+      2
+    ],
+    "support": 1113,
+    "total_score": 354.248158131177,
+    "description": "PR-User-PR-User"
+  },
+  "RPU": {
+    "pattern": [
+      1,
+      3,
+      2
+    ],
+    "support": 1117,
+    "total_score": 354.1783779145897,
+    "description": "Repo-PR-User"
+  }
+}

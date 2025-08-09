@@ -1,0 +1,108 @@
+{
+  "IIRI": {
+    "pattern": [
+      0,
+      0,
+      1,
+      0
+    ],
+    "support": 67348,
+    "total_score": 20224.705856150144,
+    "description": "User-User-Post-User"
+  },
+  "IRII": {
+    "pattern": [
+      0,
+      1,
+      0,
+      0
+    ],
+    "support": 61631,
+    "total_score": 18509.609281043628,
+    "description": "User-Post-User-User"
+  },
+  "IRI": {
+    "pattern": [
+      0,
+      1,
+      0
+    ],
+    "support": 17507,
+    "total_score": 5271.549427345229,
+    "description": "User-Post-User"
+  },
+  "IIIR": {
+    "pattern": [
+      0,
+      0,
+      0,
+      1
+    ],
+    "support": 13473,
+    "total_score": 4045.3021760125484,
+    "description": "User-User-User-Post"
+  },
+  "IIII": {
+    "pattern": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "support": 12438,
+    "total_score": 3732.160510488907,
+    "description": "User-User-User-User"
+  },
+  "RIII": {
+    "pattern": [
+      1,
+      0,
+      0,
+      0
+    ],
+    "support": 9202,
+    "total_score": 2764.017306581994,
+    "description": "Post-User-User-User"
+  },
+  "III": {
+    "pattern": [
+      0,
+      0,
+      0
+    ],
+    "support": 5059,
+    "total_score": 1518.3946905876494,
+    "description": "User-User-User"
+  },
+  "IIR": {
+    "pattern": [
+      0,
+      0,
+      1
+    ],
+    "support": 4823,
+    "total_score": 1449.6195369333436,
+    "description": "User-User-Post"
+  },
+  "RII": {
+    "pattern": [
+      1,
+      0,
+      0
+    ],
+    "support": 4632,
+    "total_score": 1392.366766162387,
+    "description": "Post-User-User"
+  },
+  "RIRI": {
+    "pattern": [
+      1,
+      0,
+      1,
+      0
+    ],
+    "support": 4470,
+    "total_score": 1361.3377181208052,
+    "description": "Post-User-Post-User"
+  }
+}

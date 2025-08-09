@@ -9,7 +9,7 @@ def get_args(args=None):
     parser.add_argument("--num_epoch", type=int, default=100)
     parser.add_argument("--seed", type=int, help="Random seed", default=1)
     parser.add_argument(
-        "--num_run", type=int, help="Number of iteration runs", default=1
+        "--num_run", type=int, help="Number of iteration runs", default=10
     )
 
     # basic

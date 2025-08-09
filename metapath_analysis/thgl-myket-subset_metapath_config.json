@@ -1,0 +1,62 @@
+{
+  "RIRI": {
+    "pattern": [
+      1,
+      0,
+      1,
+      0
+    ],
+    "support": 78119,
+    "total_score": 23449.84558614884,
+    "description": "App-User-App-User"
+  },
+  "IRIR": {
+    "pattern": [
+      0,
+      1,
+      0,
+      1
+    ],
+    "support": 67876,
+    "total_score": 20376.945014157664,
+    "description": "User-App-User-App"
+  },
+  "IRI": {
+    "pattern": [
+      0,
+      1,
+      0
+    ],
+    "support": 17120,
+    "total_score": 5142.403600817975,
+    "description": "User-App-User"
+  },
+  "RIR": {
+    "pattern": [
+      1,
+      0,
+      1
+    ],
+    "support": 7186,
+    "total_score": 2159.5373115346847,
+    "description": "App-User-App"
+  },
+  "RI": {
+    "pattern": [
+      1,
+      0
+    ],
+    "support": 2398,
+    "total_score": 720.7116234052717,
+    "description": "App-User"
+  },
+  "IR": {
+    "pattern": [
+      0,
+      1
+    ],
+    "support": 1981,
+    "total_score": 597.6906592331259,
+    "description": "User-App"
+  }
+}

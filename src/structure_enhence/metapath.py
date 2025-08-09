@@ -5,41 +5,105 @@ from src.structure_enhence.motif import get_rich_edge_motif_strength
 
 META_PATHS_CONFIG = {
     "thgl-github-subset": {
-        # 原有长路径
-        "URU": [2, 1, 2],
-        "UIU": [2, 0, 2],
-        "UPRRU": [2, 3, 1, 2],
-        "RUR": [1, 2, 1],
-        # 新增短路径
-        "UR_short": [2, 1],    # 含义: 用户-仓库 (用户贡献过的仓库)
-        "UI_short": [2, 0],    # 含义: 用户-Issue (用户参与过的Issue)
-        "UPR_short": [2, 3],   # 含义: 用户-PR (用户提交过的PR)
+        # 基于分析结果的高价值元路径（按得分排序选择前5个）
+        "RPUP": [1, 3, 2, 3],    # Repo-PR-User-PR (得分最高: 3444.5)
+        "PUPR": [3, 2, 3, 1],    # PR-User-PR-Repo (得分: 2505.8)  
+        "PUP": [3, 2, 3],        # PR-User-PR (得分: 1833.5)
+        "UPRP": [2, 3, 1, 3],    # User-PR-Repo-PR (得分: 1075.4)
     },
     "thgl-software-subset": {
-        # 与github类似
-        "URU": [2, 1, 2],
-        "UIU": [2, 0, 2],
-        "UPRRU": [2, 3, 1, 2],
-        "RUR": [1, 2, 1],
-        "UR_short": [2, 1],
-        "UI_short": [2, 0],
-        "UPR_short": [2, 3],
+        # 基于分析结果的高价值元路径（按得分排序选择前5个）
+        "UPIP": [2, 3, 0, 3],    # User-PR-Issue-PR (得分最高: 1722.2)
+        "RIRU": [1, 0, 1, 2],    # Repo-Issue-Repo-User (得分: 1428.8)
+        "URIR": [2, 1, 0, 1],    # User-Repo-Issue-Repo (得分: 1259.0)
+        "RURI": [1, 2, 1, 0],    # Repo-User-Repo-Issue (得分: 1217.3)
+    
     },
     "thgl-myket-subset": {
-        # 原有路径
-        "UAU": [0, 1, 0],
-        "AUA": [1, 0, 1],
-        # 新增短路径
-        "UA_short": [0, 1],     # 含义: 用户-App (用户使用过的App)
+        # 基于分析结果的高价值元路径（按得分排序选择前4个）
+        "RIRI": [1, 0, 1, 0],    # App-User-App-User (得分最高: 23449.8)
+        "IRIR": [0, 1, 0, 1],    # User-App-User-App (得分: 20376.9)
+        "IRI": [0, 1, 0],        # User-App-User (得分: 5142.4)
+        "RIR": [1, 0, 1],        # App-User-App (得分: 2159.5)
     },
     "thgl-forum-subset": {
-        # 原有路径
-        "UBU": [0, 1, 0],
-        "BUB": [1, 0, 1],
-        # 新增短路径
-        "UB_short": [0, 1],     # 含义: 用户-帖子 (用户交互过的帖子)
+        # 基于分析结果的高价值元路径（按得分排序选择前5个）
+        "IIRI": [0, 0, 1, 0],    # User-User-Post-User (得分最高: 20224.7)
+        "IRII": [0, 1, 0, 0],    # User-Post-User-User (得分: 18509.6)  
+        "IRI": [0, 1, 0],        # User-Post-User (得分: 5271.5)
+        "IIIR": [0, 0, 0, 1],    # User-User-User-Post (得分: 4045.3)
     }
 }
+
+# 添加不同配置策略
+def get_metapath_config(dataset_name: str, config_type: str = "default") -> dict:
+    """
+    获取元路径配置
+    Args:
+        dataset_name: 数据集名称
+        config_type: 配置类型 ("minimal", "default", "extended")
+    """
+    base_config = META_PATHS_CONFIG.get(dataset_name, {})
+    
+    if config_type == "minimal":
+        # 只使用最重要的2-3个路径，减少计算开销
+        minimal_configs = {
+            "thgl-github-subset": {
+                "RPUP": [1, 3, 2, 3],    # 最高得分
+                "PUPR": [3, 2, 3, 1],    # 第二高得分
+                "PUP": [3, 2, 3],        # 长度较短，计算效率高
+            },
+            "thgl-software-subset": {
+                "UPIP": [2, 3, 0, 3],    # 最高得分
+                "RIRU": [1, 0, 1, 2],    # 第二高得分
+                "URIR": [2, 1, 0, 1],    # 第三高得分
+            },
+            "thgl-myket-subset": {
+                "RIRI": [1, 0, 1, 0],    # 最高得分
+                "IRIR": [0, 1, 0, 1],    # 第二高得分
+                "IRI": [0, 1, 0],        # 长度较短，计算效率高
+            },
+            "thgl-forum-subset": {
+                "IIRI": [0, 0, 1, 0],    # 最高得分
+                "IRII": [0, 1, 0, 0],    # 第二高得分
+                "IRI": [0, 1, 0],        # 长度较短，计算效率高
+            }
+        }
+        return minimal_configs.get(dataset_name, {})
+    
+    elif config_type == "extended":
+        # 使用更多路径（6-8个）
+        extended_configs = {
+            "thgl-github-subset": {
+                **base_config,
+                "PRPU": [3, 1, 3, 2],    # PR-Repo-PR-User (得分: 790.5)
+                "UPUP": [2, 3, 2, 3],    # User-PR-User-PR (得分: 499.1)
+                "PRP": [3, 1, 3],        # PR-Repo-PR (得分: 438.2)
+                "RPU": [1, 3, 2],        # Repo-PR-User (得分: 354.2)
+            },
+            "thgl-software-subset": {
+                **base_config,
+                "IRUR": [0, 1, 2, 1],    # Issue-Repo-User-Repo (得分: 1044.2)
+                "PIPU": [3, 0, 3, 2],    # PR-Issue-PR-User (得分: 995.0)
+                "PUPI": [3, 2, 3, 0],    # PR-User-PR-Issue (得分: 843.5)
+                "IPUP": [0, 3, 2, 3],    # Issue-PR-User-PR (得分: 671.0)
+            },
+            "thgl-myket-subset": {
+                **base_config,
+                "RI": [1, 0],            # App-User (得分: 720.7)
+                "IR": [0, 1],            # User-App (得分: 597.7)
+            },
+            "thgl-forum-subset": {
+                **base_config,
+                "IIII": [0, 0, 0, 0],    # User-User-User-User (得分: 3732.2)
+                "RIII": [1, 0, 0, 0],    # Post-User-User-User (得分: 2764.0)
+                "III": [0, 0, 0],        # User-User-User (得分: 1518.4)
+                "IIR": [0, 0, 1],        # User-User-Post (得分: 1449.6)
+            }
+        }
+        return extended_configs.get(dataset_name, base_config)
+    
+    return base_config
 
 def convert_df_to_adj_list(local_subgraph_df: pd.DataFrame) -> defaultdict:
     adj_list = defaultdict(list)
@@ -115,9 +179,12 @@ def get_structural_node_features_batch(
     df: pd.DataFrame, 
     subgraph_dict_batch: list, 
     args, 
+    metapath_config_type: str = "default"  # 新增参数
 ) -> torch.Tensor:
     batch_node_features = []
-    meta_paths_to_extract = META_PATHS_CONFIG.get(args.dataset, {})
+    
+    # 使用动态配置
+    meta_paths_to_extract = get_metapath_config(args.dataset, metapath_config_type)
     node_type_map = get_all_node_type_map(args.dataset)
 
     # 1. 直接遍历批次中的每一个节点信息
@@ -146,9 +213,10 @@ def get_structural_node_features_batch(
                 node_structural_features.extend(features)
         
         batch_node_features.append(node_structural_features)
-
+    res = torch.tensor(batch_node_features, dtype=torch.float32).to(args.device)
+    print(f"Batch node features shape: {res.shape}")
     # 4. 将所有节点的特征向量堆叠成一个最终的Tensor
-    return torch.tensor(batch_node_features, dtype=torch.float32).to(args.device)
+    return res
 
 
 

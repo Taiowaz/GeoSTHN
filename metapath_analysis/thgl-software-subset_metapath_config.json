@@ -1,0 +1,110 @@
+{
+  "UPIP": {
+    "pattern": [
+      2,
+      3,
+      0,
+      3
+    ],
+    "support": 5673,
+    "total_score": 1722.2078265468006,
+    "description": "User-PR-Issue-PR"
+  },
+  "RIRU": {
+    "pattern": [
+      1,
+      0,
+      1,
+      2
+    ],
+    "support": 4695,
+    "total_score": 1428.8149094781681,
+    "description": "Repo-Issue-Repo-User"
+  },
+  "URIR": {
+    "pattern": [
+      2,
+      1,
+      0,
+      1
+    ],
+    "support": 4129,
+    "total_score": 1259.0146282392832,
+    "description": "User-Repo-Issue-Repo"
+  },
+  "RURI": {
+    "pattern": [
+      1,
+      2,
+      1,
+      0
+    ],
+    "support": 3990,
+    "total_score": 1217.3243609022556,
+    "description": "Repo-User-Repo-Issue"
+  },
+  "IRUR": {
+    "pattern": [
+      0,
+      1,
+      2,
+      1
+    ],
+    "support": 3413,
+    "total_score": 1044.2183416349253,
+    "description": "Issue-Repo-User-Repo"
+  },
+  "PIPU": {
+    "pattern": [
+      3,
+      0,
+      3,
+      2
+    ],
+    "support": 3249,
+    "total_score": 995.0147737765465,
+    "description": "PR-Issue-PR-User"
+  },
+  "PUPI": {
+    "pattern": [
+      3,
+      2,
+      3,
+      0
+    ],
+    "support": 2744,
+    "total_score": 843.5215743440232,
+    "description": "PR-User-PR-Issue"
+  },
+  "IPUP": {
+    "pattern": [
+      0,
+      3,
+      2,
+      3
+    ],
+    "support": 2169,
+    "total_score": 671.0155832180727,
+    "description": "Issue-PR-User-PR"
+  },
+  "PIP": {
+    "pattern": [
+      3,
+      0,
+      3
+    ],
+    "support": 1564,
+    "total_score": 489.52212276214834,
+    "description": "PR-Issue-PR"
+  },
+  "RIR": {
+    "pattern": [
+      1,
+      0,
+      1
+    ],
+    "support": 1543,
+    "total_score": 483.2356448476993,
+    "description": "Repo-Issue-Repo"
+  }
+}
