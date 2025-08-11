@@ -9,8 +9,9 @@ def load_model(args):
         "dim_in_node": args.node_feat_dims,  # 0
         "predict_class": 1 if not args.predict_class else args.num_edgeType + 1,  # 1
     }
+    
     if args.model == "sthn":
-        # !!!False!!!
+        # 原始STHN模型 - 保持不变
         if args.predict_class:
             from src.model.sthn import Multiclass_Interface as STHN_Interface
         else:
@@ -29,11 +30,52 @@ def load_model(args):
             "window_size": args.window_size,  # 5
             "use_single_layer": False,  # False
         }
-
+        
+        model = STHN_Interface(mixer_configs, edge_predictor_configs)
+        
+    elif args.model == "hetero_sthn":
+        # 🆕 NEW: 异构STHN模型 - 使用我们设计的异构组件
+        # 设置异构图默认参数
+        
+        if args.predict_class:
+            from src.model.sthn import HeteroMulticlass_Interface as HeteroSTHN_Interface
+        else:
+            from src.model.sthn import HeteroSTHN_Interface
+        from src.train_test import link_pred_train  # 🆕 NEW: 可以复用原有的训练函数！
+        
+        # 🆕 NEW: 异构边预测器配置（与原有配置兼容）
+        edge_predictor_configs.update({
+            "edge_types": args.edge_types,  # 🆕 NEW: 添加边类型
+        })
+        
+        # 🆕 NEW: 异构mixer配置（与原有配置兼容）
+        mixer_configs = {
+            "per_graph_size": args.max_edges,  # 50
+            "time_channels": args.time_dims,  # 100
+            "input_channels": args.edge_feat_dims,  # 14
+            "hidden_channels": args.hidden_dims,  # 100
+            "out_channels": args.hidden_dims,  # 100
+            "num_layers": args.num_layers,  # 1
+            "dropout": args.dropout,  # 0.1
+            "channel_expansion_factor": args.channel_expansion_factor,  # 2
+            "window_size": args.window_size,  # 5
+            "edge_types": args.edge_types,  # 🆕 NEW: 添加边类型
+            "use_single_layer": False,  # False
+        }
+        
+        # 🆕 NEW: 创建异构STHN模型（接口与原有模型几乎相同）
+        model = HeteroSTHN_Interface(
+            mlp_mixer_configs=mixer_configs,
+            edge_predictor_configs=edge_predictor_configs,
+            edge_types=args.edge_types  # 🆕 NEW: 传递边类型
+        )
+        
+        # 🆕 NEW: 可以复用原有的训练函数，因为我们保持了接口兼容性！
+        # link_pred_train 函数可以不用修改
+        
     else:
-        NotImplementedError()
+        raise NotImplementedError(f"Model {args.model} not implemented")
 
-    model = STHN_Interface(mixer_configs, edge_predictor_configs)
     for k, v in model.named_parameters():
         logging.info(f"{k}: {v.requires_grad}")
 

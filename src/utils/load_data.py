@@ -119,6 +119,7 @@ def load_all_data(args, dataset):
         logging.info(edge_type)
         logging.info(edge_type.sum())
         args.num_edgeType = len(set(edge_type.tolist()))
+        args.edge_types = [i for i in range(args.num_edgeType)]
         edge_feats = torch.nn.functional.one_hot(
             torch.from_numpy(edge_type), num_classes=args.num_edgeType
         )
