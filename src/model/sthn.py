@@ -807,6 +807,10 @@ class Multiclass_Interface(nn.Module):
         return pred_pos, pred_neg
 
 
+
+
+
+
 class HeteroTimeEncode(nn.Module):
     """
     异构时间编码器 - 为不同类型的边提供专门的时间编码
@@ -1219,7 +1223,6 @@ class HeteroEdgePredictor_per_node(torch.nn.Module):
             device = h_src.device
             return torch.empty(0, self.predict_class, device=device), torch.empty(0, self.predict_class, device=device)
         
-# ...existing code...
 
 class HeteroSTHN_Interface(nn.Module):
     """
