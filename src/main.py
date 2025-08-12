@@ -29,7 +29,7 @@ def main(args):
     exper_dir = os.path.join(args.exper_base_dir, exp_name, args.dataset)
     checkpoint_dir = os.path.join(exper_dir, "checkpoint")
     result_dir = os.path.join(exper_dir, "result")
-    result_filename = f"{result_dir}/{args.model}_{args.dataset}_results.json"
+    result_filename = f"{result_dir}/{args.dataset}_results.json"
     # 创建目录
     os.makedirs(exper_dir, exist_ok=True)
     os.makedirs(exper_dir, exist_ok=True)
