@@ -18,7 +18,7 @@ from src.utils.construct_subgraph import (
     get_subgraph_sampler,
     pre_compute_subgraphs,
 )
-from src.utils.utils import row_norm
+from src.utils.utils import row_norm, get_edge_types_poss_mask
 
 
 def get_inputs_for_ind(
@@ -56,7 +56,6 @@ def get_inputs_for_ind(
         )
 
         subgraph_data_raw = [subgraph_data_list[i] for i in mini_batch_inds]
-    
     subgraph_data = construct_mini_batch_giant_graph(subgraph_data_raw, args.max_edges)
 
     # raw edge feats
@@ -77,6 +76,8 @@ def get_inputs_for_ind(
         cur_inds += num_of_df_links
     else:
         subgraph_node_feats = None
+    
+    poss_edgetypes = get_poss_edgetypes(subgraph_data_list, num_of_df_links, args)
     # scale
     scaler.fit(subgraph_edts.reshape(-1, 1))
     subgraph_edts = (
@@ -113,7 +114,7 @@ def get_inputs_for_ind(
             torch.from_numpy(subgraph_edge_type).to(args.device),
         ]
 
-    return inputs, subgraph_node_feats, cur_inds
+    return inputs, subgraph_node_feats, cur_inds, poss_edgetypes
 
 
 def run(
@@ -165,7 +166,7 @@ def run(
 
     for ind in range(len(train_loader)):
         ###################################################
-        inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
+        inputs, subgraph_node_feats, cur_inds, poss_edgetypes = get_inputs_for_ind(
             subgraphs,
             mode,
             cached_neg_samples,
@@ -182,7 +183,7 @@ def run(
         start_time = time.time()
         # 将inputs, neg_samples, subgraph_node_feats转为张量
 
-        loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
+        loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats, poss_edgetypes)
         if mode == "train" and optimizer != None:
             optimizer.zero_grad()
             if isinstance(loss, torch.Tensor) and loss.dim() > 0:
@@ -442,7 +443,7 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
     with torch.no_grad():
         for ind in range(len(test_loader)):
             # Get inputs for current batch
-            inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
+            inputs, subgraph_node_feats, cur_inds,poss_edgetypes = get_inputs_for_ind(
                 test_subgraphs,
                 "test" if split_mode == "test" else "tgb-val",
                 cached_neg_samples,
@@ -457,7 +458,7 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
             )
 
             # Forward pass
-            loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
+            loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats,poss_edgetypes)
             split = len(pred) // 2
 
             # Evaluate and store results
@@ -487,3 +488,27 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
         torch.cuda.empty_cache()
 
     return perf_metrics_mean, perf_metrics_std, perf_list
+
+
+
+
+def get_poss_edgetypes(subgraph_data_list, num_of_df_links,args):
+    # 获取当前批次的节点
+    all_nodes = []
+    for subgraph_data in subgraph_data_list:
+        root_node = subgraph_data["root_node"]
+        all_nodes.append(root_node)
+    poss_edgetypes = []
+    src_nodes = all_nodes[:num_of_df_links]
+    # 遍历获取每一批次的目标节点
+    for i in range(1, (len(all_nodes) // num_of_df_links)):
+        dst_nodes = all_nodes[i * num_of_df_links : (i + 1) * num_of_df_links]
+        poss_edgetype=get_edge_types_poss_mask(args.dataset, src_nodes, dst_nodes)
+        poss_edgetypes.append(poss_edgetype)
+    poss_edgetypes = torch.cat(poss_edgetypes, dim=0).to(args.device)
+    return poss_edgetypes
+
+
+
+
+    
