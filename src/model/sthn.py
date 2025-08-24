@@ -1179,6 +1179,8 @@ class HeteroEdgePredictor_per_node(torch.nn.Module):
         # 初始化输出张量，使用极小值填充（-inf会在softmax时出问题）
         all_pos_preds = []  # 存储每个边的有效预测结果
         
+        all_neg_preds = [[] for _ in range(neg_samples)] 
+        
         # 为每条边分别处理
         for src_idx in range(num_src):
 
@@ -1225,7 +1227,7 @@ class HeteroEdgePredictor_per_node(torch.nn.Module):
             all_pos_preds.append(pos_pred)
 
             # 负样本预测
-            all_neg_preds = [[] for _ in range(neg_samples)] 
+            
             for neg_idx in range(neg_samples):
                 global_neg_idx = src_idx + neg_idx * num_src
                 neg_edgetypes_mask = poss_edgetypes[num_src + global_neg_idx]
@@ -1256,18 +1258,25 @@ class HeteroEdgePredictor_per_node(torch.nn.Module):
                     # 将有效类型的预测结果堆叠并取最大值
                     if len(edge_neg_preds) > 1:
                         # 多个有效类型，堆叠后取最大值
-                        edge_neg_stack = torch.stack(edge_neg_preds, dim=0)  # [num_valid_types, predict_class] 
-                        neg_pred, _ = torch.max(edge_neg_stack, dim=0)  # [predict_class]
+                        edge_neg_stack = torch.stack(edge_neg_preds, dim=0)  # [num_valid_types, 1] 
+                        neg_pred, _ = torch.max(edge_neg_stack, dim=0)  # [1]
                     else:
                         # 只有一个有效类型
-                        neg_pred = edge_neg_preds[0]  # [predict_class]
+                        neg_pred = edge_neg_preds[0]  # [1]
                 all_neg_preds[neg_idx].append(neg_pred)
 
 
         # 将所有边的结果堆叠
         final_pos_pred = torch.stack(all_pos_preds, dim=0)  # [num_edges, 1]
-        final_neg_pred = torch.cat(all_neg_preds, dim=0)  # [neg_samples * num_edges, 1]
+        final_neg_pred_list = []
+        for neg_idx in range(neg_samples):
+            # 堆叠当前批次的所有负样本
+            batch_neg_preds = torch.stack(all_neg_preds[neg_idx], dim=0)  # [num_edges, predict_class]
+            final_neg_pred_list.append(batch_neg_preds)
         
+        # 拼接所有批次
+        final_neg_pred = torch.cat(final_neg_pred_list, dim=0)  # [num_edges * neg_samples, predict_class]
+    
         return final_pos_pred, final_neg_pred
 
 class HeteroSTHN_Interface(nn.Module):
