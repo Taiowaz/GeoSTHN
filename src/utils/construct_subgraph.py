@@ -196,9 +196,9 @@ def construct_mini_batch_giant_graph(all_graphs, max_num_edges):
 
     return {
         # for edges
-        # 所有边的源节点索引数组，经过重新映射后的全局索引
+        # 所有边的源节点索引数组，即源节点在nodes数组中的位置
         "row": all_rows,
-        # 所有边的目标节点索引数组，经过重新映射后的全局索引
+        # 所有边的目标节点索引数组，即目标节点在nodes数组中的位置
         "col": all_cols,
         # 所有边的原始ID数组，保持原始图中的边标识符
         "eid": all_eids,
@@ -209,7 +209,7 @@ def construct_mini_batch_giant_graph(all_graphs, max_num_edges):
         # 边指针数组，标记每个子图在合并后图中的边范围
         "all_edge_indptr": all_edge_indptr,
         # for nodes
-        # 所有节点的原始ID数组，来自各个子图的节点
+        # 所有节点的原始ID数组，来自各个子图的节点，除根节点外包括相关的节点
         "nodes": all_nodes,
         # 所有节点的时间差数组，相对于各自根节点的时间差
         "dts": all_dts,

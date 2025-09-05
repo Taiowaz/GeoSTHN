@@ -58,6 +58,37 @@ def get_args(args=None):
     parser.add_argument("--use_node_cls", action="store_true")
     parser.add_argument("--use_cached_subgraph", action="store_true", default=True)
 
+    parser.add_argument(
+        "--use_riemannian_structure",
+        action="store_true",
+        default=False, # Set to True to enable the structural encoder
+        help="Enable the Riemannian structural encoder to add geometric features.",
+    )
+    parser.add_argument(
+        "--rgfm_embed_dim",
+        type=int,
+        default=32,
+        help="Embedding dimension for the Riemannian encoder and its initial structural features.",
+    )
+    parser.add_argument(
+        "--rgfm_n_layers",
+        type=int,
+        default=2,
+        help="Number of layers in the Riemannian structural encoder.",
+    )
+    parser.add_argument(
+        "--rgfm_hidden_dim",
+        type=int,
+        default=256,
+        help="Hidden dimension of MLPs within the Riemannian encoder.",
+    )
+    parser.add_argument(
+        "--rgfm_dropout",
+        type=float,
+        default=0.1,
+        help="Dropout rate used within the Riemannian encoder.",
+    )
+
     args = parser.parse_args(args)
 
     return args

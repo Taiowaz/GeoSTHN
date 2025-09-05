@@ -1,3 +1,4 @@
+from re import sub
 import torch
 import numpy as np
 import logging
@@ -10,6 +11,7 @@ from torchmetrics.classification import BinaryAUROC, BinaryAveragePrecision
 from sklearn.preprocessing import MinMaxScaler
 from src.utils.utils import evaluate_mrr
 from tgb.linkproppred.evaluate import Evaluator
+from scipy.sparse.linalg import ArpackError
 
 from src.utils.construct_subgraph import (
     get_random_inds,
@@ -58,6 +60,15 @@ def get_inputs_for_ind(
         subgraph_data_raw = [subgraph_data_list[i] for i in mini_batch_inds]
     
     subgraph_data = construct_mini_batch_giant_graph(subgraph_data_raw, args.max_edges)
+
+    structural_data =  create_riemannian_data_snapshot(
+        nodes=subgraph_data["nodes"],
+        row=subgraph_data["row"],
+        col=subgraph_data["col"],
+        root_nodes=subgraph_data["root_nodes"],
+        embed_dim=args.rgfm_embed_dim,
+        device=args.device,
+        )
 
     # raw edge feats
     subgraph_edge_feats = edge_feats[subgraph_data["eid"]]
@@ -113,7 +124,7 @@ def get_inputs_for_ind(
             torch.from_numpy(subgraph_edge_type).to(args.device),
         ]
 
-    return inputs, subgraph_node_feats, cur_inds
+    return inputs, subgraph_node_feats, cur_inds,structural_data
 
 
 def run(
@@ -165,7 +176,7 @@ def run(
 
     for ind in range(len(train_loader)):
         ###################################################
-        inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
+        inputs, subgraph_node_feats, cur_inds,structual_data = get_inputs_for_ind(
             subgraphs,
             mode,
             cached_neg_samples,
@@ -182,7 +193,7 @@ def run(
         start_time = time.time()
         # 将inputs, neg_samples, subgraph_node_feats转为张量
 
-        loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
+        loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats,structual_data)
         if mode == "train" and optimizer != None:
             optimizer.zero_grad()
             if isinstance(loss, torch.Tensor) and loss.dim() > 0:
@@ -442,7 +453,7 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
     with torch.no_grad():
         for ind in range(len(test_loader)):
             # Get inputs for current batch
-            inputs, subgraph_node_feats, cur_inds = get_inputs_for_ind(
+            inputs, subgraph_node_feats, cur_inds, structual_data = get_inputs_for_ind(
                 test_subgraphs,
                 "test" if split_mode == "test" else "tgb-val",
                 cached_neg_samples,
@@ -457,7 +468,7 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
             )
 
             # Forward pass
-            loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
+            loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats, structual_data)
             split = len(pred) // 2
 
             # Evaluate and store results
@@ -487,3 +498,175 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
         torch.cuda.empty_cache()
 
     return perf_metrics_mean, perf_metrics_std, perf_list
+
+
+
+import torch
+import networkx as nx
+import numpy as np
+from torch_geometric.data import Data, Batch
+from torch_geometric.utils import to_networkx, from_networkx, get_laplacian
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import eigs
+
+# 在您的 train_test.py 文件中
+
+def get_eigen_tokens_tensor(edge_index, num_nodes, embed_dim, device):
+    """
+    根据图结构计算拉普拉斯特征向量。(增强版：更好的错误处理和数值稳定性)
+    """
+    edge_index = edge_index.to(device)
+    lap_edge_index, edge_weight = get_laplacian(edge_index, normalization="sym", num_nodes=num_nodes)
+    row, col = lap_edge_index.cpu().numpy()
+    L = csr_matrix((edge_weight.cpu().numpy(), (row, col)), shape=(num_nodes, num_nodes))
+    
+    k = min(embed_dim, L.shape[0] - 2)
+    if k <= 0:
+        return torch.zeros((num_nodes, embed_dim), device=device)
+    
+    # 多级策略处理ARPACK错误
+    strategies = [
+        # 策略1: 标准设置
+        {'ncv': min(20 + 2 * k, L.shape[0]), 'maxiter': L.shape[0] * 10},
+        # 策略2: 更保守的ncv设置
+        {'ncv': min(10 + k, L.shape[0]), 'maxiter': L.shape[0] * 20},
+        # 策略3: 最小ncv设置
+        {'ncv': min(k + 2, L.shape[0]), 'maxiter': L.shape[0] * 50},
+    ]
+    
+    for i, strategy in enumerate(strategies):
+        ncv = strategy['ncv']
+        maxiter = strategy['maxiter']
+        
+        # 安全检查
+        if k >= L.shape[0] or ncv > L.shape[0] or ncv <= k:
+            continue
+            
+        try:
+            # 尝试计算特征值和特征向量
+            eigenvals, eigvecs = eigs(
+                L, 
+                k=k, 
+                which='SM', 
+                ncv=ncv, 
+                maxiter=maxiter,
+                tol=1e-6  # 适度的容差
+            )
+            eigvecs = torch.from_numpy(eigvecs.real).float().to(device)
+            
+            # 验证结果的有效性
+            if torch.isnan(eigvecs).any() or torch.isinf(eigvecs).any():
+                print(f"Warning: Invalid eigenvectors detected in strategy {i+1}, trying next strategy...")
+                continue
+                
+            break
+            
+        except (ArpackError, np.linalg.LinAlgError) as e:
+            print(f"Strategy {i+1} failed with ncv={ncv}, maxiter={maxiter}: {str(e)}")
+            if i == len(strategies) - 1:  # 最后一个策略也失败了
+                print(f"All strategies failed for graph of size {num_nodes}. Using random embeddings as fallback.")
+                # 使用随机初始化作为最后的备选方案
+                eigvecs = torch.randn(num_nodes, min(k, embed_dim), device=device) * 0.1
+            else:
+                continue
+    
+    # 如果k小于embed_dim，进行填充
+    if eigvecs.shape[1] < embed_dim:
+        padding = torch.zeros(eigvecs.shape[0], embed_dim - eigvecs.shape[1], device=device)
+        eigvecs = torch.cat([eigvecs, padding], dim=-1)
+    elif eigvecs.shape[1] > embed_dim:
+        eigvecs = eigvecs[:, :embed_dim]
+        
+    return eigvecs
+def create_riemannian_data_snapshot(nodes: list, row: list, col: list, root_nodes: list, embed_dim: int, device: torch.device):
+    """
+    根据批次信息构建输入的Data对象。(修复版：确保输出能正确映射回root_nodes)
+    """
+    # 🆕 核心修复：保持root_nodes的原始顺序，将历史交互节点追加到后面
+    # 这样确保前len(root_nodes)个节点就是我们需要的批次节点
+    
+    # 1. 先获取root_nodes中的唯一节点，保持原始顺序
+    root_nodes_unique = []
+    root_nodes_seen = set()
+    for node in root_nodes:
+        if node not in root_nodes_seen:
+            root_nodes_unique.append(node)
+            root_nodes_seen.add(node)
+    
+    # 2. 添加历史交互节点（但排除已经在root_nodes中的节点）
+    additional_nodes = [node for node in nodes if node not in root_nodes_seen]
+    
+    # 3. 最终的节点顺序：root_nodes的唯一节点在前，历史节点在后
+    snapshot_global_nodes = root_nodes_unique + additional_nodes
+    snapshot_global_to_local_map = {global_id: i for i, global_id in enumerate(snapshot_global_nodes)}
+    
+    # 4. 构建原始nodes到新索引的映射
+    old_local_to_new_local_map = {}
+    for old_idx, global_id in enumerate(nodes):
+        if global_id in snapshot_global_to_local_map:
+            old_local_to_new_local_map[old_idx] = snapshot_global_to_local_map[global_id]
+    
+    num_snapshot_nodes = len(snapshot_global_nodes)
+    
+    # 5. 构建边索引
+    if len(row) > 0 and len(col) > 0:
+        valid_edges = []
+        for r, c in zip(row, col):
+            if r in old_local_to_new_local_map and c in old_local_to_new_local_map:
+                valid_edges.append((old_local_to_new_local_map[r], old_local_to_new_local_map[c]))
+        
+        if valid_edges:
+            new_row, new_col = zip(*valid_edges)
+            edge_index = torch.tensor([new_row, new_col], dtype=torch.long, device=device)
+        else:
+            edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+    else:
+        edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+        
+    snapshot_data = Data(num_nodes=num_snapshot_nodes, edge_index=edge_index)
+
+    # 计算拉普拉斯特征向量
+    eigvecs = get_eigen_tokens_tensor(snapshot_data.edge_index, snapshot_data.num_nodes, embed_dim, device)
+    snapshot_data._eigvecs = eigvecs
+    snapshot_data.tokens = lambda idx: snapshot_data._eigvecs[idx]
+    snapshot_data.x = snapshot_data.tokens(torch.arange(snapshot_data.num_nodes, device=device))
+
+    # BFS树构建逻辑保持不变
+    G = to_networkx(snapshot_data, to_undirected=True)
+    tree_list = []
+    for i in range(snapshot_data.num_nodes):
+        bfs_edges = list(nx.bfs_tree(G, i).edges())
+        if not bfs_edges:
+            tree_edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+        else:
+            src_nodes = [edge[0] for edge in bfs_edges]
+            dst_nodes = [edge[1] for edge in bfs_edges]
+            tree_edge_index = torch.tensor([src_nodes, dst_nodes], dtype=torch.long, device=device)
+        
+        tree_data = Data(
+            edge_index=tree_edge_index, 
+            num_nodes=num_snapshot_nodes,
+            x=torch.zeros(num_snapshot_nodes, eigvecs.shape[1], device=device)
+        )
+        tree_list.append(tree_data)
+        
+    snapshot_data.batch_tree = Batch.from_data_list(tree_list)
+    
+    # 🆕 关键修复：建立root_nodes到输出索引的直接映射
+    snapshot_data.global_n_id = torch.tensor(snapshot_global_nodes, dtype=torch.long, device=device)
+    
+    # 🆕 重要：root_nodes_mask现在直接对应原始root_nodes的顺序
+    # 因为我们把root_nodes放在了snapshot_global_nodes的前面
+    root_nodes_local_indices = []
+    for gid in root_nodes:
+        # 由于我们的设计，root_nodes中的每个节点都能在snapshot_global_to_local_map中找到
+        root_nodes_local_indices.append(snapshot_global_to_local_map[gid])
+    
+    snapshot_data.root_nodes_mask = torch.tensor(root_nodes_local_indices, dtype=torch.long, device=device)
+    snapshot_data.n_id = torch.arange(snapshot_data.num_nodes, device=device)
+    
+    # 🆕 添加批次信息，方便模型使用
+    snapshot_data.num_root_nodes = len(root_nodes)
+    snapshot_data.num_unique_root_nodes = len(root_nodes_unique)
+
+    return snapshot_data.to(device)
