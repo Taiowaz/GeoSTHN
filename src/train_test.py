@@ -513,71 +513,255 @@ from scipy.sparse.linalg import eigs
 
 def get_eigen_tokens_tensor(edge_index, num_nodes, embed_dim, device):
     """
-    根据图结构计算拉普拉斯特征向量。(增强版：更好的错误处理和数值稳定性)
+    根据图结构计算拉普拉斯特征向量。(扩展策略版：全面的错误处理和多种备选方案)
     """
     edge_index = edge_index.to(device)
+    
+    # 如果图太小或embed_dim太大，直接返回随机嵌入
+    if num_nodes <= 2 or embed_dim >= num_nodes - 1:
+        return torch.randn(num_nodes, embed_dim, device=device) * 0.1
+    
     lap_edge_index, edge_weight = get_laplacian(edge_index, normalization="sym", num_nodes=num_nodes)
     row, col = lap_edge_index.cpu().numpy()
     L = csr_matrix((edge_weight.cpu().numpy(), (row, col)), shape=(num_nodes, num_nodes))
     
-    k = min(embed_dim, L.shape[0] - 2)
+    # 检查拉普拉斯矩阵的条件数，如果太大说明数值不稳定
+    try:
+        # 添加小的正则化项来改善数值稳定性
+        L = L + 1e-8 * csr_matrix(np.eye(num_nodes))
+    except:
+        pass
+    
+    k = min(embed_dim, num_nodes - 2)
     if k <= 0:
         return torch.zeros((num_nodes, embed_dim), device=device)
     
-    # 多级策略处理ARPACK错误
+    # 大幅扩展的多级策略处理ARPACK错误
     strategies = [
-        # 策略1: 标准设置
-        {'ncv': min(20 + 2 * k, L.shape[0]), 'maxiter': L.shape[0] * 10},
-        # 策略2: 更保守的ncv设置
-        {'ncv': min(10 + k, L.shape[0]), 'maxiter': L.shape[0] * 20},
-        # 策略3: 最小ncv设置
-        {'ncv': min(k + 2, L.shape[0]), 'maxiter': L.shape[0] * 50},
+        # 第一组：标准SM策略，逐步降低要求
+        {'k': min(k, num_nodes // 3), 'ncv': min(3 * k + 15, num_nodes - 1), 'maxiter': num_nodes * 8, 'tol': 1e-6, 'which': 'SM'},
+        {'k': min(k, num_nodes // 4), 'ncv': min(2 * k + 12, num_nodes - 1), 'maxiter': num_nodes * 10, 'tol': 1e-5, 'which': 'SM'},
+        {'k': min(k // 2, num_nodes // 5), 'ncv': min(2 * k + 8, num_nodes - 1), 'maxiter': num_nodes * 15, 'tol': 1e-4, 'which': 'SM'},
+        {'k': min(k // 3, num_nodes // 6), 'ncv': min(k + 10, num_nodes - 1), 'maxiter': num_nodes * 20, 'tol': 1e-4, 'which': 'SM'},
+        {'k': min(k // 4, 8), 'ncv': min(k + 8, num_nodes - 1), 'maxiter': num_nodes * 25, 'tol': 1e-3, 'which': 'SM'},
+        
+        # 第二组：尝试LM策略（最大特征值）
+        {'k': min(k // 2, 10), 'ncv': min(2 * k + 8, num_nodes - 1), 'maxiter': num_nodes * 12, 'tol': 1e-5, 'which': 'LM'},
+        {'k': min(k // 3, 8), 'ncv': min(k + 8, num_nodes - 1), 'maxiter': num_nodes * 18, 'tol': 1e-4, 'which': 'LM'},
+        {'k': min(k // 4, 6), 'ncv': min(k + 6, num_nodes - 1), 'maxiter': num_nodes * 25, 'tol': 1e-3, 'which': 'LM'},
+        
+        # 第三组：尝试LR策略（实部最大）
+        {'k': min(k // 3, 8), 'ncv': min(k + 8, num_nodes - 1), 'maxiter': num_nodes * 20, 'tol': 1e-4, 'which': 'LR'},
+        {'k': min(k // 4, 6), 'ncv': min(k + 6, num_nodes - 1), 'maxiter': num_nodes * 30, 'tol': 1e-3, 'which': 'LR'},
+        
+        # 第四组：尝试SR策略（实部最小）
+        {'k': min(k // 3, 8), 'ncv': min(k + 8, num_nodes - 1), 'maxiter': num_nodes * 20, 'tol': 1e-4, 'which': 'SR'},
+        {'k': min(k // 4, 6), 'ncv': min(k + 6, num_nodes - 1), 'maxiter': num_nodes * 30, 'tol': 1e-3, 'which': 'SR'},
+        
+        # 第五组：最保守策略，k值非常小
+        {'k': min(5, num_nodes // 8), 'ncv': min(12, num_nodes - 1), 'maxiter': num_nodes * 40, 'tol': 1e-2, 'which': 'SM'},
+        {'k': min(4, num_nodes // 10), 'ncv': min(10, num_nodes - 1), 'maxiter': num_nodes * 50, 'tol': 1e-2, 'which': 'LM'},
+        {'k': min(3, num_nodes // 12), 'ncv': min(8, num_nodes - 1), 'maxiter': num_nodes * 60, 'tol': 1e-1, 'which': 'SM'},
+        
+        # 第六组：极端保守策略
+        {'k': 2, 'ncv': min(6, num_nodes - 1), 'maxiter': num_nodes * 100, 'tol': 1e-1, 'which': 'SM'},
+        {'k': 1, 'ncv': min(4, num_nodes - 1), 'maxiter': num_nodes * 200, 'tol': 1e-1, 'which': 'LM'},
     ]
     
+    eigvecs = None
+    
     for i, strategy in enumerate(strategies):
+        actual_k = strategy['k']
         ncv = strategy['ncv']
         maxiter = strategy['maxiter']
+        tol = strategy['tol']
+        which = strategy.get('which', 'SM')
         
-        # 安全检查
-        if k >= L.shape[0] or ncv > L.shape[0] or ncv <= k:
+        # 严格的安全检查
+        if actual_k <= 0 or actual_k >= num_nodes or ncv <= actual_k or ncv >= num_nodes:
             continue
             
         try:
+            print(f"Trying strategy {i+1}/{len(strategies)}: k={actual_k}, ncv={ncv}, maxiter={maxiter}, which={which}, tol={tol}")
+            
             # 尝试计算特征值和特征向量
-            eigenvals, eigvecs = eigs(
+            eigenvals, eigvecs_raw = eigs(
                 L, 
-                k=k, 
-                which='SM', 
+                k=actual_k, 
+                which=which, 
                 ncv=ncv, 
                 maxiter=maxiter,
-                tol=1e-6  # 适度的容差
+                tol=tol
             )
-            eigvecs = torch.from_numpy(eigvecs.real).float().to(device)
+            
+            # 转换为PyTorch张量
+            eigvecs = torch.from_numpy(eigvecs_raw.real).float().to(device)
             
             # 验证结果的有效性
             if torch.isnan(eigvecs).any() or torch.isinf(eigvecs).any():
                 print(f"Warning: Invalid eigenvectors detected in strategy {i+1}, trying next strategy...")
+                eigvecs = None
                 continue
                 
+            print(f"Strategy {i+1} succeeded with k={actual_k} eigenvectors!")
             break
             
-        except (ArpackError, np.linalg.LinAlgError) as e:
-            print(f"Strategy {i+1} failed with ncv={ncv}, maxiter={maxiter}: {str(e)}")
-            if i == len(strategies) - 1:  # 最后一个策略也失败了
-                print(f"All strategies failed for graph of size {num_nodes}. Using random embeddings as fallback.")
-                # 使用随机初始化作为最后的备选方案
-                eigvecs = torch.randn(num_nodes, min(k, embed_dim), device=device) * 0.1
-            else:
+        except (ArpackError, np.linalg.LinAlgError, ValueError) as e:
+            print(f"Strategy {i+1} failed: {str(e)}")
+            eigvecs = None
+            continue
+        except Exception as e:
+            print(f"Strategy {i+1} failed with unexpected error: {str(e)}")
+            eigvecs = None
+            continue
+    
+    # 如果所有ARPACK策略都失败了，尝试备选的数值方法
+    if eigvecs is None:
+        print(f"All ARPACK strategies failed for graph of size {num_nodes}. Trying alternative numerical methods...")
+        
+        # 备选方案1：使用scipy的其他特征值求解器
+        alternative_methods = [
+            # 使用稠密矩阵的标准特征值分解（适用于小图）
+            {'method': 'dense_eigh', 'max_nodes': 1000},
+            # 使用lobpcg方法（对于某些矩阵更稳定）
+            {'method': 'lobpcg', 'max_nodes': 5000},
+        ]
+        
+        for method_info in alternative_methods:
+            if num_nodes > method_info['max_nodes']:
+                continue
+                
+            try:
+                if method_info['method'] == 'dense_eigh':
+                    print("Trying dense eigenvalue decomposition...")
+                    L_dense = L.toarray()
+                    eigenvals, eigvecs_raw = np.linalg.eigh(L_dense)
+                    # 取前k个最小的特征值对应的特征向量
+                    k_actual = min(k, len(eigenvals) - 1)
+                    eigvecs = torch.from_numpy(eigvecs_raw[:, :k_actual]).float().to(device)
+                    print(f"Dense method succeeded with {k_actual} eigenvectors!")
+                    break
+                    
+                elif method_info['method'] == 'lobpcg':
+                    print("Trying LOBPCG method...")
+                    from scipy.sparse.linalg import lobpcg
+                    k_actual = min(k, num_nodes // 4)
+                    if k_actual > 0:
+                        # LOBPCG需要初始猜测
+                        X = np.random.rand(num_nodes, k_actual)
+                        eigenvals, eigvecs_raw = lobpcg(L, X, largest=False, maxiter=maxiter)
+                        eigvecs = torch.from_numpy(eigvecs_raw).float().to(device)
+                        print(f"LOBPCG method succeeded with {k_actual} eigenvectors!")
+                        break
+                        
+            except Exception as e:
+                print(f"Alternative method {method_info['method']} failed: {str(e)}")
                 continue
     
-    # 如果k小于embed_dim，进行填充
+    # 如果数值方法也失败了，使用图结构的备选方案
+    if eigvecs is None:
+        print("All numerical methods failed. Using graph-structure-based alternatives...")
+        
+        structure_methods = [
+            'degree_based',
+            'random_walk_based', 
+            'positional_encoding',
+            'node_id_embedding',
+            'random_initialization'
+        ]
+        
+        for method in structure_methods:
+            try:
+                if method == 'degree_based':
+                    print("Using degree-based encoding...")
+                    # 基于节点度数的编码
+                    degrees = np.array(L.sum(axis=1)).flatten()
+                    degree_matrix = np.zeros((num_nodes, min(embed_dim, num_nodes)))
+                    for i in range(min(embed_dim, num_nodes)):
+                        degree_matrix[:, i] = np.power(degrees, i + 1)
+                    # 归一化
+                    degree_matrix = degree_matrix / (np.linalg.norm(degree_matrix, axis=0, keepdims=True) + 1e-8)
+                    eigvecs = torch.from_numpy(degree_matrix).float().to(device)
+                    
+                elif method == 'random_walk_based':
+                    print("Using random walk based encoding...")
+                    # 基于随机游走的编码
+                    P = L.copy()
+                    P.data = 1.0 / (P.data + 1e-8)  # 转换为转移概率矩阵
+                    rw_matrix = np.eye(num_nodes)
+                    for step in range(min(embed_dim, 10)):
+                        if step < embed_dim:
+                            if step == 0:
+                                encoding_matrix = rw_matrix.copy()
+                            else:
+                                encoding_matrix = np.column_stack([encoding_matrix, rw_matrix.sum(axis=1)])
+                        rw_matrix = rw_matrix @ P.toarray()
+                    eigvecs = torch.from_numpy(encoding_matrix[:, :embed_dim]).float().to(device)
+                    
+                elif method == 'positional_encoding':
+                    print("Using positional encoding...")
+                    # 位置编码
+                    pos_encoding = torch.zeros(num_nodes, embed_dim, device=device)
+                    for i in range(embed_dim):
+                        for j in range(num_nodes):
+                            if i % 2 == 0:
+                                pos_encoding[j, i] = np.sin(j / (10000 ** (i / embed_dim)))
+                            else:
+                                pos_encoding[j, i] = np.cos(j / (10000 ** ((i-1) / embed_dim)))
+                    eigvecs = pos_encoding
+                    
+                elif method == 'node_id_embedding':
+                    print("Using node ID embedding...")
+                    # 节点ID嵌入
+                    node_embedding = torch.zeros(num_nodes, embed_dim, device=device)
+                    for i in range(num_nodes):
+                        node_embedding[i, i % embed_dim] = 1.0
+                    eigvecs = node_embedding
+                    
+                else:  # random_initialization
+                    print("Using random initialization...")
+                    eigvecs = torch.randn(num_nodes, embed_dim, device=device) * 0.1
+                
+                if eigvecs is not None:
+                    print(f"Successfully generated embeddings using {method}")
+                    break
+                    
+            except Exception as e:
+                print(f"Structure method {method} failed: {str(e)}")
+                continue
+    
+    # 最终的安全网：如果一切都失败了
+    if eigvecs is None:
+        print("All methods failed. Using final fallback...")
+        eigvecs = torch.eye(num_nodes, device=device)[:, :min(embed_dim, num_nodes)]
+        if eigvecs.shape[1] < embed_dim:
+            padding = torch.zeros(num_nodes, embed_dim - eigvecs.shape[1], device=device)
+            eigvecs = torch.cat([eigvecs, padding], dim=-1)
+    
+    # 调整维度以匹配embed_dim
     if eigvecs.shape[1] < embed_dim:
-        padding = torch.zeros(eigvecs.shape[0], embed_dim - eigvecs.shape[1], device=device)
-        eigvecs = torch.cat([eigvecs, padding], dim=-1)
+        # 如果特征向量数量不足，用零填充或重复最后一列
+        if eigvecs.shape[1] > 0:
+            # 重复最后一列直到达到embed_dim
+            last_col = eigvecs[:, -1:].repeat(1, embed_dim - eigvecs.shape[1])
+            eigvecs = torch.cat([eigvecs, last_col], dim=-1)
+        else:
+            padding = torch.zeros(eigvecs.shape[0], embed_dim, device=device)
+            eigvecs = padding
     elif eigvecs.shape[1] > embed_dim:
+        # 如果特征向量过多，截取前embed_dim个
         eigvecs = eigvecs[:, :embed_dim]
+    
+    # 最终的健全性检查和归一化
+    if eigvecs.shape != (num_nodes, embed_dim):
+        print(f"Warning: eigvecs shape {eigvecs.shape} doesn't match expected {(num_nodes, embed_dim)}")
+        eigvecs = torch.randn(num_nodes, embed_dim, device=device) * 0.1
+    
+    # 添加归一化以提高数值稳定性
+    eigvecs = eigvecs / (torch.norm(eigvecs, dim=1, keepdim=True) + 1e-8)
         
     return eigvecs
+
 def create_riemannian_data_snapshot(nodes: list, row: list, col: list, root_nodes: list, embed_dim: int, device: torch.device):
     """
     根据批次信息构建输入的Data对象。(修复版：确保输出能正确映射回root_nodes)
