@@ -101,6 +101,38 @@ class SphericalStructureLearner(nn.Module):
         z_S = self.manifold_S.expmap(x, self.manifold_S.proju(x, self.res_lin(x_S)))
         return z_S
 
+# 🆕 NEW: 为“星型图”创建一个专属的新学习器模块
+class StarStructureLearner(nn.Module):
+    """
+    一个专门用于学习星型图（中心化结构）的模块。
+    它在双曲空间中运作，并使用与HyperbolicStructureLearner相同的注意力机制。
+    """
+    def __init__(self, manifold_H, manifold_S, in_dim, hidden_dim, out_dim, dropout=0.1):
+        super(StarStructureLearner, self).__init__()
+        self.manifold_H = manifold_H
+        self.manifold_S = manifold_S
+        # 我们可以复用强大的跨流形注意力机制
+        self.star_agg = CrossManifoldAttention(manifold_S, manifold_H, in_dim, hidden_dim, out_dim, dropout)
+
+    def forward(self, x_H, x_S, batch_star):
+        # 这里的逻辑与 HyperbolicStructureLearner 非常相似
+        num_graphs = batch_star.num_graphs
+        
+        # 扩展节点特征以匹配批次结构
+        node_labels = torch.arange(x_H.shape[0], device=x_H.device).repeat(num_graphs)
+        x_k_v = x_H[node_labels] # Key and Value from Hyperbolic space
+        x_q = x_S[node_labels]   # Query from Spherical space
+        
+        # 使用注意力机制聚合星型图的边
+        x = self.star_agg(x_q, x_k_v, x_k_v, edge_index=batch_star.edge_index)
+
+        # 使用 Frechet mean 聚合结果，得到更新后的节点表示
+        x_extend = torch.cat([x, x_H], dim=0)
+        label_extend = torch.cat(
+            [node_labels, torch.arange(x_H.shape[0], device=x_H.device)],
+            dim=0)
+        z_H = self.manifold_H.Frechet_mean(x_extend, keepdim=True, sum_idx=label_extend)
+        return z_H
 
 class CrossManifoldAttention(nn.Module):
     def __init__(self, manifold_q, manifold_k, in_dim, hidden_dim, out_dim, dropout):

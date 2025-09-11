@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from riemanngfm.modules.layers import EuclideanEncoder, ManifoldEncoder
-from riemanngfm.modules.basics import HyperbolicStructureLearner, SphericalStructureLearner
+from riemanngfm.modules.basics import HyperbolicStructureLearner, SphericalStructureLearner, StarStructureLearner
 from riemanngfm.manifolds import Lorentz, Sphere, ProductSpace
 
 
@@ -98,34 +98,82 @@ class InitBlock(nn.Module):
         return E, H, S
 
 
+# class StructuralBlock(nn.Module):
+#     def __init__(self, manifold_H, manifold_S, in_dim, hidden_dim, out_dim, dropout):
+#         super(StructuralBlock, self).__init__()
+#         self.manifold_H = manifold_H
+#         self.manifold_S = manifold_S
+#         self.Hyp_learner = HyperbolicStructureLearner(self.manifold_H, self.manifold_S, in_dim, hidden_dim, out_dim, dropout)
+#         self.Sph_learner = SphericalStructureLearner(self.manifold_H, self.manifold_S, in_dim, hidden_dim, out_dim, dropout)
+#         self.proj = self.proj = nn.Sequential(nn.Linear(3 * out_dim, hidden_dim),
+#                                   nn.ReLU(),
+#                                   nn.Linear(hidden_dim, out_dim))
+
+#     def forward(self, x_tuple, data):
+#         """
+
+#         :param x_tuple: (x_E, x_H, x_S)
+#         :param data: Dataset for a graph contains batched sub-graphs and sub-trees
+#         :return: x_tuple: (x_H, x_S)
+#         """
+#         x_E, x_H, x_S = x_tuple
+#         x_H = self.Hyp_learner(x_H, x_S, data.batch_tree)
+#         x_S = self.Sph_learner(x_H, x_S, data)
+
+#         H_E = self.manifold_H.proju(x_H, x_E)
+#         S_E = self.manifold_S.proju(x_S, x_E)
+
+#         H_E = self.manifold_H.transp0back(x_H, H_E)
+#         S_E = self.manifold_S.transp0back(x_S, S_E)
+
+#         E = torch.cat([x_E, H_E, S_E], dim=-1)
+#         x_E = self.proj(E)
+#         return x_E, x_H, x_S
+
 class StructuralBlock(nn.Module):
     def __init__(self, manifold_H, manifold_S, in_dim, hidden_dim, out_dim, dropout):
         super(StructuralBlock, self).__init__()
         self.manifold_H = manifold_H
         self.manifold_S = manifold_S
+        
+        # 🆕 NEW: 同时初始化两种树状结构学习器
+        # 默认的通用树学习器 (处理BFS树)
         self.Hyp_learner = HyperbolicStructureLearner(self.manifold_H, self.manifold_S, in_dim, hidden_dim, out_dim, dropout)
+        # 针对性的星型图学习器
+        self.Star_learner = StarStructureLearner(self.manifold_H, self.manifold_S, in_dim, hidden_dim, out_dim, dropout)
+        
+        # 球面学习器保持不变
         self.Sph_learner = SphericalStructureLearner(self.manifold_H, self.manifold_S, in_dim, hidden_dim, out_dim, dropout)
-        self.proj = self.proj = nn.Sequential(nn.Linear(3 * out_dim, hidden_dim),
+        
+        self.proj = nn.Sequential(nn.Linear(3 * out_dim, hidden_dim),
                                   nn.ReLU(),
                                   nn.Linear(hidden_dim, out_dim))
 
     def forward(self, x_tuple, data):
         """
-
-        :param x_tuple: (x_E, x_H, x_S)
-        :param data: Dataset for a graph contains batched sub-graphs and sub-trees
-        :return: x_tuple: (x_H, x_S)
+        (模块化修正版：根据数据是否存在 batch_star 来动态选择学习器)
         """
         x_E, x_H, x_S = x_tuple
-        x_H = self.Hyp_learner(x_H, x_S, data.batch_tree)
+
+        # --- 🆕 NEW: 动态选择树状结构学习器 ---
+        if hasattr(data, 'batch_star') and data.batch_star is not None:
+            # 如果是 github 或 software 数据集，它们会有 batch_star
+            # 我们优先使用针对性的 Star_learner
+            print("INFO: 检测到星型图结构，使用 StarStructureLearner。")
+            x_H = self.Star_learner(x_H, x_S, data.batch_star)
+        else:
+            # 对于其他数据集，使用默认的通用 Hyp_learner
+            x_H = self.Hyp_learner(x_H, x_S, data.batch_tree)
+        
+        # 球面学习器保持不变
         x_S = self.Sph_learner(x_H, x_S, data)
 
+        # --- (后续的投影和拼接逻辑保持不变) ---
         H_E = self.manifold_H.proju(x_H, x_E)
         S_E = self.manifold_S.proju(x_S, x_E)
-
         H_E = self.manifold_H.transp0back(x_H, H_E)
         S_E = self.manifold_S.transp0back(x_S, S_E)
-
         E = torch.cat([x_E, H_E, S_E], dim=-1)
         x_E = self.proj(E)
+        
         return x_E, x_H, x_S
