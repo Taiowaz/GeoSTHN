@@ -66,14 +66,7 @@ def main(args):
 
     logging.info("数据加载和预处理完成。")
 
-    # 5. 加载模型
-    # -------------------
-    logging.info("加载模型...")
-    model, args, link_pred_train = load_model(args)
-    if args.num_gpus > 1:
-        model = torch.nn.DataParallel(model)
-    model = model.to(args.device)
-    logging.info(f"模型结构: {model}")
+
 
     # 6. 定义损失函数和优化器
     # -------------------------------------
@@ -82,7 +75,6 @@ def main(args):
     # 7. 训练循环
     # ----------------
     logging.info("开始训练...")
-    model.train()
     for run_idx in range(args.num_run):
         logging.info(
             "-------------------------------------------------------------------------------"
@@ -106,7 +98,13 @@ def main(args):
         # Link prediction
         start_val = timeit.default_timer()
         logging.info("Train link prediction task from scratch ...")
-
+        logging.info("加载模型...")
+        model, args, link_pred_train = load_model(args)
+        if args.num_gpus > 1:
+            model = torch.nn.DataParallel(model)
+        model = model.to(args.device)
+        logging.info(f"模型结构: {model}")
+        model.train()
         model = link_pred_train(
             model.to(args.device), args, g, df, node_feats, edge_feats
         )
