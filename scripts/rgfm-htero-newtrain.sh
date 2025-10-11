@@ -1,5 +1,5 @@
-run_python="/private/miniconda3/envs/llm-cdhg/bin/python"
-run_file="/private/LLM-CDHG/src/main.py"
+run_python="/root/miniconda3/envs/geosthn/bin/python"
+run_file="/private/GeoSTHN/src/main.py"
 
 exper_name=$(basename "$0" .sh)
 common_args="

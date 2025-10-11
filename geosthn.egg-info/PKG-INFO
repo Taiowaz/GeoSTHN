@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Name: geosthn
+Version: 0.1.0
+Summary: geosthn
+Home-page: https://github.com/Taiowaz/LLM-CDHG
+Author: Albin
+Author-email: taiowaz@gmail.com
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+
+第一步 pip install -e . 将sampler_core.cpp安装上
