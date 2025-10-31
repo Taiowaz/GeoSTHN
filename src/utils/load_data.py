@@ -138,8 +138,8 @@ def load_all_data(args, dataset):
     args.edge_feat_dims = edge_feat_dims
 
     if node_feats != None:
-        node_feats = node_feats.to(args.device)
+        node_feats = node_feats
     if edge_feats != None:
-        edge_feats = edge_feats.to(args.device)
+        edge_feats = edge_feats
 
     return data, node_feats, edge_feats, g, df, args

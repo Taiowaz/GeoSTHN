@@ -102,31 +102,35 @@ def main(args):
         model, args, link_pred_train = load_model(args)
         if args.num_gpus > 1:
             model = torch.nn.DataParallel(model)
-        model = model.to(args.device)
         logging.info(f"模型结构: {model}")
         model.train()
-        model = link_pred_train(
+        model_state = link_pred_train(
             model.to(args.device), args, g, df, node_feats, edge_feats
         )
 
+        torch.save(model_state, os.path.join(save_model_dir, f"{save_model_id}.pt"))
         # 保存训练好的模型
-        if args.num_gpus > 1:
-            torch.save(
-                model.module.state_dict(),
-                os.path.join(save_model_dir, f"{save_model_id}.pt"),
-            )
-        else:
-            torch.save(
-                model.state_dict(), os.path.join(save_model_dir, f"{save_model_id}.pt")
-            )
+        # if args.num_gpus > 1:
+        #     torch.save(
+        #         model.module.state_dict(),
+        #         os.path.join(save_model_dir, f"{save_model_id}.pt"),
+        #     )
+        # else:
+        #     torch.save(
+        #         model.state_dict(), os.path.join(save_model_dir, f"{save_model_id}.pt")
+        #     )
         logging.info(
             f"模型已保存到: {os.path.join(save_model_dir, f'{save_model_id}.pt')}"
         )
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         dataset.load_val_ns()
-
+        model.load_state_dict(torch.load(os.path.join(save_model_dir, f"{save_model_id}.pt")))
+        model = model.to(args.device)
         # Validation ...
-        perf_metrics_val_mean, perf_metrics_val_std, perf_list_val = test(
+        perf_mrr_val_mean, perf_mrr_val_std, perf_list_val, auroc_val, auprc_val = test(
             "val",
             model.to(args.device),
             args,
@@ -141,15 +145,20 @@ def main(args):
 
         logging.info(f"val: Evaluation Setting: >>> ONE-VS-MANY <<< ")
         logging.info(
-            f"\tval: {metric}: {perf_metrics_val_mean: .4f} ± {perf_metrics_val_std: .4f}"
+            f"\tval: {metric}: {perf_mrr_val_mean: .4f} ± {perf_mrr_val_std: .4f}"
+        )
+        logging.info(
+            f"\tval: AUROC: {auroc_val: .4f} | AUPRC: {auprc_val: .4f}"
         )
         val_time = timeit.default_timer() - start_val
         logging.info(f"\tval: Elapsed Time (s): {val_time: .4f}")
-
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
         dataset.load_test_ns()
         # testing ...
         start_test = timeit.default_timer()
-        perf_metrics_test_mean, perf_metrics_test_std, perf_list_test = test(
+        perf_mrr_test_mean, perf_mrr_test_std, perf_list_test, auroc_test, auprc_test = test(
             "test",
             model.to(args.device),
             args,
@@ -164,19 +173,27 @@ def main(args):
 
         logging.info(f"Test: Evaluation Setting: >>> ONE-VS-MANY <<< ")
         logging.info(
-            f"\tTest: {metric}: {perf_metrics_test_mean: .4f} ± {perf_metrics_test_std: .4f}"
+            f"\tTest: {metric}: {perf_mrr_test_mean: .4f} ± {perf_mrr_test_std: .4f}"
+        )
+        logging.info(
+            f"\tTest: AUROC: {auroc_test: .4f} | AUPRC: {auprc_test: .4f}"
         )
         test_time = timeit.default_timer() - start_test
         logging.info(f"\tTest: Elapsed Time (s): {test_time: .4f}")
-
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         save_results(
             {
                 "model": args.model,
                 "data": args.dataset,
                 "run": run_idx,
                 "seed": args.seed,
-                f"val {metric}": f"{perf_metrics_val_mean: .4f}  +- {perf_metrics_val_std: .4f}",
-                f"test {metric}": f"{perf_metrics_test_mean: .4f} +- {perf_metrics_test_std: .4f}",
+                f"val {metric}": f"{perf_mrr_val_mean: .4f}  +- {perf_mrr_val_std: .4f}",
+                "val auroc": f"{auroc_val: .4f}",
+                "val auprc": f"{auprc_val: .4f}",
+                f"test {metric}": f"{perf_mrr_test_mean: .4f} +- {perf_mrr_test_std: .4f}",
+                "test auroc": f"{auroc_test: .4f}",
+                "test auprc": f"{auprc_test: .4f}",
                 "test_time": test_time,
                 "tot_train_val_time": val_time,
             },

@@ -56,7 +56,7 @@ def get_args(args=None):
     parser.add_argument("--structure_hops", type=int, default=1)
 
     parser.add_argument("--use_node_cls", action="store_true")
-    parser.add_argument("--use_cached_subgraph", action="store_true", default=True)
+    parser.add_argument("--use_cached_subgraph", action="store_true", default=False)
 
     parser.add_argument(
         "--use_riemannian_structure",
