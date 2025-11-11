@@ -399,7 +399,7 @@ def compute_sign_feats(node_feats, df, start_i, num_links, root_nodes, args):
                 sparse_sizes=(num_nodes, num_nodes),
             )
             # 对邻接矩阵进行行归一化，并移动到指定设备
-            adj_norm = row_norm(adj).to(args.device)
+            adj_norm = row_norm(adj)
             # 初始化 SIGN 特征列表，第一个元素为原始节点特征
             sign_feats = [node_feats]
             # 进行多跳邻域聚合
