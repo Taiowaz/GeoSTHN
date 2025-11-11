@@ -1,5 +1,5 @@
-run_python="/private/miniconda3/envs/geosthn/bin/python"
-run_file="/private/GeoSTHN/src/main.py"
+run_python="/home/handb/.conda/envs/geosthn/bin/python"
+run_file="/home/handb/GeoSTHN/src/main.py"
 
 exper_name=$(basename "$0" .sh)
 common_args="
