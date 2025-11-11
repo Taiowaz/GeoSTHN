@@ -6,7 +6,6 @@ common_args="
     --use_onehot_node_feats
     --use_graph_structure
     --use_cached_subgraph
-    --model hetero_sthn
 "
 
 
@@ -20,14 +19,14 @@ common_args="
 #     --device 0 > run_log/run_${dataset}_abl.log 2>&1 &
 # echo $! > run_log/run_${dataset}_abl.pid
 
-dataset="thgl-github-subset"
-nohup $run_python $run_file \
-    --exper_name ${exper_name} \
-    --dataset ${dataset} \
-    $common_args \
-    --use_gpu 1 \
-    --device 0 > run_log/run_${dataset}_abl.log 2>&1 &
-echo $! > run_log/run_${dataset}_abl.pid
+# dataset="thgl-github-subset"
+# nohup $run_python $run_file \
+#     --exper_name ${exper_name} \
+#     --dataset ${dataset} \
+#     $common_args \
+#     --use_gpu 1 \
+#     --device 1 > run_log/run_${dataset}_abl.log 2>&1 &
+# echo $! > run_log/run_${dataset}_abl.pid
 
 
 # dataset="thgl-myket-subset"
@@ -36,7 +35,7 @@ echo $! > run_log/run_${dataset}_abl.pid
 #     --dataset ${dataset} \
 #     $common_args \
 #     --use_gpu 1 \
-#     --device 0 > run_log/run_${dataset}_abl.log 2>&1 &
+#     --device 1 > run_log/run_${dataset}_abl.log 2>&1 &
 # echo $! > run_log/run_${dataset}_abl.pid
 
 dataset="thgl-software-subset"
