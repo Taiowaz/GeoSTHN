@@ -5,9 +5,9 @@ exper_name=$(basename "$0" .sh)
 common_args="
     --use_onehot_node_feats
     --use_graph_structure
-    --model hetero_sthn
     --use_cached_subgraph
-    --use_riemannian_structure
+    --data_dir DATA-neg1
+    --test_num_neg 1
 "
 
 
@@ -17,18 +17,18 @@ common_args="
 #     --exper_name ${exper_name} \
 #     --dataset ${dataset} \
 #     $common_args \
-#     --use_gpu 0 \
-#     --device 0 > run_log/run_${dataset}.log 2>&1 &
-# echo $! > run_log/run_${dataset}.pid
+#     --use_gpu 1 \
+#     --device 1 > run_log/run_${dataset}_abl.log 2>&1 &
+# echo $! > run_log/run_${dataset}_abl.pid
 
 # dataset="thgl-github-subset"
 # nohup $run_python $run_file \
 #     --exper_name ${exper_name} \
 #     --dataset ${dataset} \
 #     $common_args \
-#     --use_gpu 0 \
-#     --device 1 > run_log/run_${dataset}.log 2>&1 &
-# echo $! > run_log/run_${dataset}.pid
+#     --use_gpu 1 \
+#     --device 1 > run_log/run_${dataset}_abl.log 2>&1 &
+# echo $! > run_log/run_${dataset}_abl.pid
 
 
 # dataset="thgl-myket-subset"
@@ -36,18 +36,18 @@ common_args="
 #     --exper_name ${exper_name} \
 #     --dataset ${dataset} \
 #     $common_args \
-#     --use_gpu 0 \
-#     --device 1 > run_log/run_${dataset}.log 2>&1 &
-# echo $! > run_log/run_${dataset}.pid
+#     --use_gpu 1 \
+#     --device 1 > run_log/run_${dataset}_abl.log 2>&1 &
+# echo $! > run_log/run_${dataset}_abl.pid
 
 dataset="thgl-software-subset"
 nohup $run_python $run_file \
     --exper_name $exper_name \
     --dataset $dataset \
     $common_args \
-    --use_gpu 0 \
-    --device 3 > run_log/run_${dataset}.log 2>&1 &
-echo $! > run_log/run_${dataset}.pid
+    --use_gpu 1 \
+    --device 1 > run_log/run_${dataset}_abl_neg1.log 2>&1 &
+echo $! > run_log/run_${dataset}_abl_neg1.pid
 
 
 # 测试

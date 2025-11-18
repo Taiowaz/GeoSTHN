@@ -738,12 +738,16 @@ class STHN_Interface(nn.Module):
 
     def forward(self, model_inputs, neg_samples, node_feats):
         pred_pos, pred_neg = self.predict(model_inputs, neg_samples, node_feats)
-        all_pred = torch.cat((pred_pos, pred_neg), dim=0)
+        all_pred_logits = torch.cat((pred_pos, pred_neg), dim=0)
         all_edge_label = torch.cat(
             (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
         )
-        loss = self.criterion(all_pred, all_edge_label).mean()
-        return loss, all_pred, all_edge_label
+        loss = self.criterion(all_pred_logits, all_edge_label).mean()
+        
+        # 返回 sigmoid 激活后的概率值
+        all_pred_prob = torch.sigmoid(all_pred_logits)
+        
+        return loss, all_pred_prob, all_edge_label
 
     def predict(self, model_inputs, neg_samples, node_feats):
         if self.time_feats_dim > 0 and self.node_feats_dim == 0:
@@ -784,13 +788,17 @@ class Multiclass_Interface(nn.Module):
         model_inputs = model_inputs[:-1]
         pred_pos, pred_neg = self.predict(model_inputs, neg_samples, node_feats)
 
-        all_pred = torch.cat((pred_pos, pred_neg), dim=0)
-        all_edge_label = torch.squeeze(
-            torch.cat((pos_edge_label, torch.zeros_like(pos_edge_label)), dim=0)
+        # 损失计算逻辑与原来相同
+        all_pred_logits = torch.cat((pred_pos, pred_neg), dim=0)
+        all_edge_label = torch.cat(
+            (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
         )
-        loss = self.criterion(all_pred, all_edge_label).mean()
+        loss = self.criterion(all_pred_logits, all_edge_label).mean()
+        
+        # 返回 sigmoid 激活后的概率值
+        all_pred_prob = torch.sigmoid(all_pred_logits)
 
-        return loss, all_pred, all_edge_label
+        return loss, all_pred_prob, all_edge_label
 
     def predict(self, model_inputs, neg_samples, node_feats):
         if self.time_feats_dim > 0 and self.node_feats_dim == 0:
@@ -1275,13 +1283,16 @@ class HeteroSTHN_Interface(nn.Module):
         pred_pos, pred_neg = self.predict(model_inputs, neg_samples, node_feats, edge_types)
         
         # 损失计算逻辑与原来完全相同
-        all_pred = torch.cat((pred_pos, pred_neg), dim=0)
+        all_pred_logits = torch.cat((pred_pos, pred_neg), dim=0)
         all_edge_label = torch.cat(
             (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
         )
-        loss = self.criterion(all_pred, all_edge_label).mean()
+        loss = self.criterion(all_pred_logits, all_edge_label).mean()
         
-        return loss, all_pred, all_edge_label
+        # 返回 sigmoid 激活后的概率值
+        all_pred_prob = torch.sigmoid(all_pred_logits)
+        
+        return loss, all_pred_prob, all_edge_label
 
     def predict(self, model_inputs, neg_samples, node_feats, edge_types=None):  # 🆕 NEW: 新增edge_types参数
         """
@@ -1370,13 +1381,16 @@ class HeteroMulticlass_Interface(nn.Module):
         pred_pos, pred_neg = self.predict(model_inputs_for_predict, neg_samples, node_feats, edge_types)
 
         # 损失计算逻辑与原来相同
-        all_pred = torch.cat((pred_pos, pred_neg), dim=0)
-        all_edge_label = torch.squeeze(
-            torch.cat((pos_edge_label, torch.zeros_like(pos_edge_label)), dim=0)
+        all_pred_logits = torch.cat((pred_pos, pred_neg), dim=0)
+        all_edge_label = torch.cat(
+            (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
         )
-        loss = self.criterion(all_pred, all_edge_label).mean()
+        loss = self.criterion(all_pred_logits, all_edge_label).mean()
+        
+        # 返回 sigmoid 激活后的概率值
+        all_pred_prob = torch.sigmoid(all_pred_logits)
 
-        return loss, all_pred, all_edge_label
+        return loss, all_pred_prob, all_edge_label
 
     def predict(self, model_inputs, neg_samples, node_feats, edge_types=None):  # 🆕 NEW: 新增edge_types参数
         """
@@ -1513,13 +1527,16 @@ class HeteroSTHN_Interface_rgfm(nn.Module):
         pred_pos, pred_neg = self.predict(model_inputs, neg_samples, node_feats, edge_types, structural_data)
         
         # 损失计算逻辑完全不变
-        all_pred = torch.cat((pred_pos, pred_neg), dim=0)
+        all_pred_logits = torch.cat((pred_pos, pred_neg), dim=0)
         all_edge_label = torch.cat(
             (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
         )
-        loss = self.criterion(all_pred, all_edge_label).mean()
+        loss = self.criterion(all_pred_logits, all_edge_label).mean()
         
-        return loss, all_pred, all_edge_label
+        # 返回 sigmoid 激活后的概率值
+        all_pred_prob = torch.sigmoid(all_pred_logits)
+        
+        return loss, all_pred_prob, all_edge_label
 
     def predict(self, model_inputs, neg_samples, node_feats, edge_types=None,
                 # 🆕 NEW: predict函数也接收 structural_data

@@ -5,7 +5,7 @@
 analyze
 exper/*
 temp
-tgb/DATA/*
+tgb/DATA*/*
 tmp/
 graph_test
 

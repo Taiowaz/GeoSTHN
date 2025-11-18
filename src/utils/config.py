@@ -15,6 +15,8 @@ def get_args(args=None):
 
     # basic
     parser.add_argument("--dataset", type=str, default="thgl-forum-subset")
+    parser.add_argument("--data_dir", type=str, default="DATA")
+    parser.add_argument("--test_num_neg", type=int, default=20)
     parser.add_argument("--use_gpu", type=int, default=0, help="use gpu or not")
     parser.add_argument(
         "--device",

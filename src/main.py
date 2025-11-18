@@ -126,7 +126,7 @@ def main(args):
         )
 
         dataset.load_val_ns()
-        args.output_dir = args.output_dir + f"/run_{run_idx}"
+        args.output_dir = output_dir + f"/run_{run_idx}"
         os.makedirs(args.output_dir, exist_ok=True)
         # Validation ...
         (

@@ -444,8 +444,8 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
     elif split_mode == "val":
         cur_df = df[args.val_mask]
 
-    neg_samples = 20
-    cached_neg_samples = 20
+    neg_samples = args.test_num_neg
+    cached_neg_samples = args.test_num_neg
 
     # Create test loader
     test_loader = cur_df.groupby(cur_df.index // args.batch_size)
@@ -456,9 +456,7 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
 
     # Initialize variables
     cur_inds = 0
-    evaluator = Evaluator(name=args.dataset)
     perf_list = []
-
     all_preds = []
     all_labels = []
 
@@ -471,14 +469,14 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
     else:
         auc_metric = BinaryAUROC(thresholds=None)
         ap_metric = BinaryAveragePrecision(thresholds=None)
-    try:
-        auc_metric.reset()
-        ap_metric.reset()
-    except Exception:
-        pass
-
+    
+    
+    auc_metric.reset()
+    ap_metric.reset()
+    
     logging.info(f"Starting prediction for {split_mode} set...")
-
+    all_aucs = []
+    all_aps = []
     with torch.no_grad():
         for ind in range(len(test_loader)):
             # Get inputs for current batch
@@ -505,13 +503,26 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
                 loss, pred, edge_label = model(inputs, neg_samples, subgraph_node_feats)
             split = len(pred) // 2
 
-            # 🆕 添加：保存当前批次的预测结果和标签
-            all_preds.append(pred.cpu())
-            all_labels.append(edge_label.cpu())
-
-            # Evaluate and store results
+            # mrr指标计算
             perf_list.append(evaluate_mrr(pred, neg_samples))
             pbar.update(1)
+            
+            # 计算AUC和AP
+            num_src = len(edge_label) // (neg_samples + 1)
+            for i in range(num_src):
+                pred_batch_item = []
+                label_batch_item = []
+                for j in range(neg_samples + 1):
+                    pred_batch_item.append(pred[i + j* num_src])
+                    label_batch_item.append(edge_label[i + j* num_src])
+                pred_batch_item = torch.stack(pred_batch_item)
+                label_batch_item = torch.stack(label_batch_item)
+                auc = auc_metric(pred_batch_item, label_batch_item.long())
+                ap = ap_metric(pred_batch_item, label_batch_item.long())
+                all_aucs.append(auc.item())
+                all_aps.append(ap.item())
+                all_preds.append(pred_batch_item)
+                all_labels.append(label_batch_item)
 
             # Clear GPU cache periodically
             if ind % 10 == 0 and torch.cuda.is_available():
@@ -524,15 +535,27 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
     pbar.close()
     logging.info(f"Completed prediction for {split_mode} set.")
 
-    # 🆕 添加：合并所有预测结果和标签
-    all_preds = torch.cat(all_preds, dim=0)
-    all_labels = torch.cat(all_labels, dim=0)
-    print("all_preds shape:", all_preds.shape)
-    print("all_labels shape:", all_labels.shape)
+    # mrr
+    perf_metrics_mean = float(np.mean(perf_list))
+    perf_metrics_std = float(np.std(perf_list))
+    logging.info(
+        f"{split_mode} results - {metric}: {perf_metrics_mean:.4f} ± {perf_metrics_std:.4f}"
+    )
+    # auc and ap
+    auc = float(np.mean(all_aucs))
+    auc_std = float(np.std(all_aucs))
+    logging.info(
+        f"{split_mode} results - auc: {auc:.4f} ± {auc_std:.4f}"
+    )
+    
+    ap = float(np.mean(all_aps))
+    ap_std = float(np.std(all_aps))
+    logging.info(
+        f"{split_mode} results - ap: {ap:.4f} ± {ap_std:.4f}"
+    )
 
-    auc = auc_metric(all_preds, all_labels)
-    ap = metric(all_preds, all_labels)
-
+    all_preds = torch.stack(all_preds).cpu()
+    all_labels = torch.stack(all_labels).cpu()
     save_path = os.path.join(args.output_dir, f'{args.dataset}_{split_mode}_preds.npz')
     np.savez(
         save_path,
@@ -540,17 +563,8 @@ def test(split_mode, model, args, metric, neg_sampler, g, df, node_feats, edge_f
         labels=all_labels.numpy()
     )
 
-    logging.info(f"Saved predictions and labels to {save_path}")
-
-    # Calculate final metrics
-    perf_metrics_mean = float(np.mean(perf_list))
-    perf_metrics_std = float(np.std(perf_list))
-    logging.info(
-        f"{split_mode} results - {metric}: {perf_metrics_mean:.4f} ± {perf_metrics_std:.4f}"
-    )
-
-
-    logging.info(f"{split_mode} metrics - AUROC: {auc}, AUPRC: {ap}")
+    logging.info(f"Saved predictions and labels to {save_path}")   
+    
     # Clear memory
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -1165,3 +1179,6 @@ def create_riemannian_data_snapshot(
     snapshot_data.n_id = torch.arange(snapshot_data.num_nodes, device=device)
 
     return snapshot_data.to(device)
+
+
+
