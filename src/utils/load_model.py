@@ -31,8 +31,25 @@ def load_model(args):
             "window_size": args.window_size,  # 5
             "use_single_layer": False,  # False
         }
+        if args.use_riemannian_structure:
+            from src.model.sthn import STHN_Interface_rgfm
 
-        model = STHN_Interface(mixer_configs, edge_predictor_configs)
+            riemannian_configs = {
+                "n_layers": args.rgfm_n_layers,
+                "in_dim": args.rgfm_embed_dim,
+                "embed_dim": args.rgfm_embed_dim,
+                "hidden_dim": args.rgfm_hidden_dim,
+                "dropout": args.rgfm_dropout,
+                "bias": True,
+                "activation": None,
+            }
+            model = STHN_Interface_rgfm(
+                mlp_mixer_configs=mixer_configs,
+                edge_predictor_configs=edge_predictor_configs,
+                riemannian_configs=riemannian_configs,
+            )
+        else:
+            model = STHN_Interface(mixer_configs, edge_predictor_configs)
 
     elif args.model == "hetero_sthn":
         # 🆕 NEW: 异构STHN模型 - 使用我们设计的异构组件
@@ -96,7 +113,6 @@ def load_model(args):
 
         # 🆕 NEW: 可以复用原有的训练函数，因为我们保持了接口兼容性！
         # link_pred_train 函数可以不用修改
-
     else:
         raise NotImplementedError(f"Model {args.model} not implemented")
 

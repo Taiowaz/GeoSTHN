@@ -1112,7 +1112,7 @@ class HeteroEdgePredictor_per_node(torch.nn.Module):
         self.default_out_fc = torch.nn.Linear(100, predict_class)
         
         self.reset_parameters()
-    
+
     def reset_parameters(self):
         # 🆕 NEW: 重置所有类型专门的预测器
         for predictor_dict in self.predictors.values():
@@ -1123,7 +1123,7 @@ class HeteroEdgePredictor_per_node(torch.nn.Module):
         self.default_src_fc.reset_parameters()
         self.default_dst_fc.reset_parameters()
         self.default_out_fc.reset_parameters()
-    
+
     def forward(self, h, neg_samples=1, edge_types=None):  # 🆕 NEW: 新增edge_types参数
         """
         前向传播 - 保持与原有EdgePredictor_per_node相同的接口
@@ -1272,7 +1272,7 @@ class HeteroSTHN_Interface(nn.Module):
             model_inputs: 模型输入（边特征、时间戳、batch_size、索引）
             neg_samples: 负采样数量
             node_feats: 节点特征
-            edge_types: [num_edges] 边类型索引（🆕 NEW: 新增参数，可选）
+            edge_types: 边类型（🆕 NEW: 新增参数，可选）
         
         Returns:
             tuple: (loss, all_pred, all_edge_label) - 与原来完全相同的输出格式
@@ -1397,7 +1397,7 @@ class HeteroMulticlass_Interface(nn.Module):
         预测方法 - 与HeteroSTHN_Interface的predict方法相同
         """
         # 处理model_inputs中的边类型信息
-        if len(model_inputs) == 5:
+        if len(model_inputs) == 6:
             edge_feats, edge_ts, batch_size, inds, input_edge_types = model_inputs
             edge_types = input_edge_types if edge_types is None else edge_types
             model_inputs_for_base = [edge_feats, edge_ts, batch_size, inds]
@@ -1503,7 +1503,6 @@ class HeteroSTHN_Interface_rgfm(nn.Module):
                 nn.ReLU(),
                 nn.Linear(predictor_input_dim * 2, predictor_input_dim)
             )
-        # 构建一个映射层，使得融合后re
 
         self.reset_parameters()
 
@@ -1622,3 +1621,68 @@ class DynamicAlignmentLayer(nn.Module):
             position_weight = torch.sigmoid(position_adjust).unsqueeze(1)  # [target_length, 1]
             
             return z_repeated * position_weight
+        
+class STHN_Interface_rgfm(STHN_Interface):
+    def __init__(self, mlp_mixer_configs, edge_predictor_configs, riemannian_configs=None):
+        self.use_riemannian = riemannian_configs is not None
+        self.structural_dim = 0
+        self.riemannian_encoder = None
+        self.dynamic_alignment = None
+        self.fusion_layer = None
+        super().__init__(mlp_mixer_configs, edge_predictor_configs)
+        if self.use_riemannian:
+            embed_dim = riemannian_configs.get("embed_dim", 0)
+            self.structural_dim = 3 * embed_dim
+            self.riemannian_encoder = RiemannianStructuralEncoder(**riemannian_configs)
+            self.dynamic_alignment = DynamicAlignmentLayer(self.structural_dim)
+            temporal_dim = mlp_mixer_configs.get("out_channels", 0)
+            if self.node_feats_dim > 0:
+                temporal_dim += self.node_feats_dim
+            predictor_dim = (
+                edge_predictor_configs["dim_in_time"] + edge_predictor_configs["dim_in_node"]
+            )
+            self.fusion_layer = nn.Sequential(
+                nn.Linear(temporal_dim + self.structural_dim, predictor_dim * 2),
+                nn.ReLU(),
+                nn.Linear(predictor_dim * 2, predictor_dim),
+            )
+
+    def reset_parameters(self):
+        super().reset_parameters()
+        if self.use_riemannian and self.riemannian_encoder is not None:
+            self.riemannian_encoder.reset_parameters()
+        if self.fusion_layer is not None:
+            for layer in self.fusion_layer:
+                if isinstance(layer, nn.Linear):
+                    layer.reset_parameters()
+
+    def forward(self, model_inputs, neg_samples, node_feats, structural_data: Data = None):
+        pred_pos, pred_neg = self.predict(
+            model_inputs, neg_samples, node_feats, structural_data=structural_data
+        )
+        all_pred_logits = torch.cat((pred_pos, pred_neg), dim=0)
+        all_edge_label = torch.cat(
+            (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
+        )
+        loss = self.criterion(all_pred_logits, all_edge_label).mean()
+        all_pred_prob = torch.sigmoid(all_pred_logits)
+        return loss, all_pred_prob, all_edge_label
+
+    def predict(self, model_inputs, neg_samples, node_feats, structural_data: Data = None):
+        if self.time_feats_dim > 0 and self.node_feats_dim == 0:
+            x = self.base_model(*model_inputs)
+        elif self.time_feats_dim > 0 and self.node_feats_dim > 0:
+            x = self.base_model(*model_inputs)
+            x = torch.cat([x, node_feats], dim=1)
+        elif self.time_feats_dim == 0 and self.node_feats_dim > 0:
+            x = node_feats
+        else:
+            raise ValueError("Either time_feats_dim or node_feats_dim must be larger than 0.")
+
+        if self.use_riemannian and structural_data is not None:
+            z_struct = self.riemannian_encoder(structural_data)
+            aligned_struct = self.dynamic_alignment(z_struct, x.size(0))
+            x = torch.cat([x, aligned_struct], dim=1)
+            x = self.fusion_layer(x)
+
+        return self.edge_predictor(x, neg_samples=neg_samples)
