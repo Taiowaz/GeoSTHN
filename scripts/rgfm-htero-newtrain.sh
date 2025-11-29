@@ -3,7 +3,6 @@ run_file="/home/handb/GeoSTHN/src/main.py"
 
 exper_name=$(basename "$0" .sh)
 common_args="
-    --use_onehot_node_feats
     --use_graph_structure
     --model hetero_sthn
     --use_cached_subgraph
@@ -12,14 +11,14 @@ common_args="
 
 
 
-# dataset="thgl-forum-subset"
-# nohup $run_python $run_file \
-#     --exper_name ${exper_name} \
-#     --dataset ${dataset} \
-#     $common_args \
-#     --use_gpu 0 \
-#     --device 0 > run_log/run_${dataset}.log 2>&1 &
-# echo $! > run_log/run_${dataset}.pid
+dataset="thgl-forum-subset"
+nohup $run_python $run_file \
+    --exper_name ${exper_name} \
+    --dataset ${dataset} \
+    $common_args \
+    --use_gpu 0 \
+    --device 1 > run_log/run_${dataset}.log 2>&1 &
+echo $! > run_log/run_${dataset}.pid
 
 # dataset="thgl-github-subset"
 # nohup $run_python $run_file \
@@ -36,18 +35,18 @@ common_args="
 #     --exper_name ${exper_name} \
 #     --dataset ${dataset} \
 #     $common_args \
-#     --use_gpu 0 \
+#     --use_gpu 1 \
 #     --device 1 > run_log/run_${dataset}.log 2>&1 &
 # echo $! > run_log/run_${dataset}.pid
 
-dataset="thgl-software-subset"
-nohup $run_python $run_file \
-    --exper_name $exper_name \
-    --dataset $dataset \
-    $common_args \
-    --use_gpu 0 \
-    --device 3 > run_log/run_${dataset}.log 2>&1 &
-echo $! > run_log/run_${dataset}.pid
+# dataset="thgl-software-subset"
+# nohup $run_python $run_file \
+#     --exper_name $exper_name \
+#     --dataset $dataset \
+#     $common_args \
+#     --use_gpu 0 \
+#     --device 3 > run_log/run_${dataset}.log 2>&1 &
+# echo $! > run_log/run_${dataset}.pid
 
 
 # 测试

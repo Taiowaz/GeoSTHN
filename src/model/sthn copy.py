@@ -1091,7 +1091,7 @@ class HeteroEdgePredictor_per_node(torch.nn.Module):
         self.default_dst_fc.reset_parameters()
         self.default_out_fc.reset_parameters()
 
-    def forward(self, h, neg_samples=1, pred_edge_types=None):  # 🆕 NEW: 新增edge_types参数
+    def forward(self, h, neg_samples=1, edge_types=None):  # 🆕 NEW: 新增edge_types参数
         """
         前向传播 - 保持与原有EdgePredictor_per_node相同的接口
         
@@ -1107,81 +1107,71 @@ class HeteroEdgePredictor_per_node(torch.nn.Module):
         h_src = h[:num_edge]
         h_pos_dst = h[num_edge : 2 * num_edge]
         h_neg_dst = h[2 * num_edge :]
-        pos_preds, neg_preds = self._hetero_forward(h_src, h_pos_dst, h_neg_dst, pred_edge_types, neg_samples)
+        pos_preds, neg_preds = self._hetero_forward(h_src, h_pos_dst, h_neg_dst, edge_types, neg_samples)
 
         return pos_preds, neg_preds
     
-    def _hetero_forward(self, h_src, h_pos_dst, h_neg_dst, pred_edge_types, neg_samples):
-            """
-            修复版：使用索引填回，保持 Batch 原始顺序
-            """
-            # 1. 获取 Batch 大小和设备
-            batch_size = h_src.shape[0]
-            device = h_src.device
+    def _hetero_forward(self, h_src, h_pos_dst, h_neg_dst, edge_types, neg_samples):
+        """
+        🆕 NEW: 异构边预测的具体实现
+        """
+        num_edge = h_src.shape[0]
+        
+        if len(edge_types)<num_edge:
+            # 随机填充一个self.edge_types的值
+            rand_fill = np.random.randint(0, len(self.edge_types), num_edge - len(edge_types))
+            edge_types = torch.cat([edge_types, torch.tensor(rand_fill, device=edge_types.device)], dim=0)
+            
+        # 初始化输出张量
+        pos_preds = []
+        neg_preds = []
+        
+        # 为每种边类型分别预测
+        for i, edge_type in enumerate(self.edge_types):
+            type_mask = (edge_types[:num_edge] == i)
 
-            # 2. 初始化结果容器 (全0或全空，形状与原始Batch一致)
-            # 形状: [Batch_Size, Output_Dim]
-            final_pos_preds = torch.zeros(batch_size, self.predict_class, device=device)
-
-            # 形状: [Batch_Size * Neg_Samples, Output_Dim]
-            # 注意：h_neg_dst 的长度本身就是 batch_size * neg_samples
-            final_neg_preds = torch.zeros(h_neg_dst.shape[0], self.predict_class, device=device)
-
-            # 3. 遍历每种边类型
-            for i, edge_type in enumerate(self.edge_types):
-                # 生成掩码，并获取原始 Batch 中的索引位置
-                type_mask = (pred_edge_types == i)
-                pos_indices = torch.where(type_mask)[0] # 关键：这些是原始位置索引
-
-                if len(pos_indices) > 0:
-                    # 获取该类型对应的预测器
-                    predictor = self.predictors[str(edge_type)]
-
-                    # --- 正样本处理 ---
-                    # 获取特征
-                        
-                    type_h_src = h_src[pos_indices]
-                    type_h_pos_dst = h_pos_dst[pos_indices]
-
-                    # 编码
-                    type_h_src_enc = predictor['src_fc'](type_h_src)
-                    type_h_pos_dst_enc = predictor['dst_fc'](type_h_pos_dst)
-
-                    # 预测
+            if type_mask.any():
+                predictor = self.predictors[str(edge_type)]
+                
+                # 获取当前类型的节点特征
+                type_h_src = h_src[type_mask]
+                type_h_pos_dst = h_pos_dst[type_mask]
+                
+                # 编码源节点和正目标节点
+                type_h_src_enc = predictor['src_fc'](type_h_src)
+                type_h_pos_dst_enc = predictor['dst_fc'](type_h_pos_dst)
+                
+                # 处理负样本：为每个正样本生成neg_samples个负样本
+                type_neg_indices = []
+                for pos_idx in torch.where(type_mask)[0]:
+                    neg_start = pos_idx * neg_samples
+                    neg_end = (pos_idx + 1) * neg_samples
+                    type_neg_indices.extend(range(neg_start, neg_end))
+                
+                if type_neg_indices:
+                    type_h_neg_dst = h_neg_dst[type_neg_indices]
+                    type_h_neg_dst_enc = predictor['dst_fc'](type_h_neg_dst)
+                    
+                    # 计算边表示
                     type_h_pos_edge = torch.nn.functional.relu(type_h_src_enc + type_h_pos_dst_enc)
+                    type_h_neg_edge = torch.nn.functional.relu(
+                        type_h_src_enc.repeat_interleave(neg_samples, dim=0) + type_h_neg_dst_enc
+                    )
+                    
+                    # 预测
                     type_pos_pred = predictor['out_fc'](type_h_pos_edge)
-
-                    # [关键修正]：将结果填回原始位置，而不是 append
-                    final_pos_preds[pos_indices] = type_pos_pred
-
-                    # --- 负样本处理 ---
-                    # 计算负样本在扁平化数组中的索引
-                    type_neg_indices = []
-                    for pos_idx in pos_indices:
-                        neg_start = pos_idx * neg_samples
-                        neg_end = (pos_idx + 1) * neg_samples
-                        # 这里直接生成索引序列
-                        type_neg_indices.append(torch.arange(neg_start, neg_end, device=device))
-
-                    if len(type_neg_indices) > 0:
-                        type_neg_indices = torch.cat(type_neg_indices)
-
-                        # 获取特征
-                        type_h_neg_dst = h_neg_dst[type_neg_indices]
-                        type_h_neg_dst_enc = predictor['dst_fc'](type_h_neg_dst)
-
-                        # 重复源节点特征以匹配负样本
-                        type_h_src_enc_expanded = type_h_src_enc.repeat_interleave(neg_samples, dim=0)
-
-                        # 预测
-                        type_h_neg_edge = torch.nn.functional.relu(type_h_src_enc_expanded + type_h_neg_dst_enc)
-                        type_neg_pred = predictor['out_fc'](type_h_neg_edge)
-
-                        # [关键修正]：填回负样本的原始位置
-                        final_neg_preds[type_neg_indices] = type_neg_pred
-
-            # 4. 直接返回填充好的容器，顺序与输入完全一致
-            return final_pos_preds, final_neg_preds
+                    type_neg_pred = predictor['out_fc'](type_h_neg_edge)
+                    
+                    pos_preds.append(type_pos_pred)
+                    neg_preds.append(type_neg_pred)
+        
+        # 拼接所有类型的预测结果
+        if pos_preds:
+            return torch.cat(pos_preds, dim=0), torch.cat(neg_preds, dim=0)
+        else:
+            # 如果没有任何类型的边，返回空张量
+            device = h_src.device
+            return torch.empty(0, self.predict_class, device=device), torch.empty(0, self.predict_class, device=device)
         
 class HeteroSTHN_Interface(nn.Module):
     """
@@ -1214,11 +1204,25 @@ class HeteroSTHN_Interface(nn.Module):
             self.base_model.reset_parameters()
         self.edge_predictor.reset_parameters()
 
-    def forward(self, model_inputs, neg_samples, node_feats):  
+    def forward(self, model_inputs, neg_samples, node_feats):  # 🆕 NEW: 新增edge_types参数
+        """
+        前向传播 - 保持与原有STHN_Interface相同的接口（只是新增了可选的edge_types参数）
+        
+        Args:
+            model_inputs: 模型输入（边特征、时间戳、batch_size、索引）
+            neg_samples: 负采样数量
+            node_feats: 节点特征
+            edge_types: 边类型（🆕 NEW: 新增参数，可选）
+        
+        Returns:
+            tuple: (loss, all_pred, all_edge_label) - 与原来完全相同的输出格式
+        """
         edge_feats = model_inputs[0]
+        # edge_feats是边类型的onehot编码，需要转回边类型数组
         edge_types = torch.argmax(edge_feats, dim=1)
         pred_pos, pred_neg = self.predict(model_inputs, neg_samples, node_feats, edge_types)
         
+        # 损失计算逻辑与原来完全相同
         all_pred_logits = torch.cat((pred_pos, pred_neg), dim=0)
         all_edge_label = torch.cat(
             (torch.ones_like(pred_pos), torch.zeros_like(pred_neg)), dim=0
@@ -1230,8 +1234,31 @@ class HeteroSTHN_Interface(nn.Module):
         
         return loss, all_pred_prob, all_edge_label
 
-    def predict(self, model_inputs, neg_samples, node_feats, edge_types=None):  
-        model_inputs_for_base = model_inputs[:-1]  # 去掉最后一个边类型信息
+    def predict(self, model_inputs, neg_samples, node_feats, edge_types=None):  # 🆕 NEW: 新增edge_types参数
+        """
+        预测方法 - 保持与原有STHN_Interface相同的逻辑，但支持边类型
+        
+        Args:
+            model_inputs: 模型输入
+            neg_samples: 负采样数量  
+            node_feats: 节点特征
+            edge_types: 边类型（🆕 NEW: 新增参数，可选）
+        
+        Returns:
+            tuple: (正边预测, 负边预测)
+        """
+        # 🆕 NEW: 检查model_inputs是否包含边类型信息
+        if len(model_inputs) == 5:
+            # 如果model_inputs包含5个元素，最后一个是边类型
+            edge_feats, edge_ts, batch_size, inds, input_edge_types = model_inputs
+            # 优先使用传入的edge_types，如果没有则使用model_inputs中的
+            edge_types = input_edge_types if edge_types is None else edge_types
+            # 重新构造model_inputs为4元素版本（兼容原有接口）
+            model_inputs_for_base = [edge_feats, edge_ts, batch_size, inds]
+        else:
+            # 原有的4元素版本
+            model_inputs_for_base = model_inputs
+        
         # 特征提取逻辑与原来相同，但传递边类型信息
         if self.time_feats_dim > 0 and self.node_feats_dim == 0:
             # 🆕 NEW: 向异构Patch编码器传递边类型信息
@@ -1245,8 +1272,8 @@ class HeteroSTHN_Interface(nn.Module):
         else:
             logging.info("Either time_feats_dim or node_feats_dim must larger than 0!")
 
-        pred_edge_types = model_inputs[-1]
-        pred_pos, pred_neg = self.edge_predictor(x, neg_samples=neg_samples, pred_edge_types=pred_edge_types)
+        # 🆕 NEW: 向异构边预测器传递边类型信息
+        pred_pos, pred_neg = self.edge_predictor(x, neg_samples=neg_samples, edge_types=edge_types)
         return pred_pos, pred_neg
 
 
@@ -1405,9 +1432,9 @@ class HeteroSTHN_Interface_rgfm(nn.Module):
                 temporal_dim += self.node_feats_dim
 
             structural_dim = 3 * riemannian_configs.get('embed_dim', 0)
-            self.norm_temporal = nn.LayerNorm(temporal_dim)
-            self.norm_struct = nn.LayerNorm(structural_dim)
-
+            # 🆕 添加动态对齐层
+            # self.dynamic_alignment = DynamicAlignmentLayer(structural_dim)
+            
             predictor_input_dim = edge_predictor_configs["dim_in_time"] + edge_predictor_configs["dim_in_node"]
             
             self.fusion_layer = nn.Sequential(
@@ -1468,16 +1495,23 @@ class HeteroSTHN_Interface_rgfm(nn.Module):
         if self.use_riemannian and structural_data is not None:
             if x_temporal is None:
                 raise ValueError("Temporal features must be computed to be fused with structural features.")
+            # ！！！！输出形状有问题，这个动态对齐层不应该出来，得检查一下形状
+            # 长度为src的最大值加1！！！！ 对齐方式存在问题
+            # 该张量的索引可以在structural_data.global_n_id中找到全局ID
             z_struct = self.riemannian_encoder(structural_data)
             # 填充z_struct以确保其长度至少与global_n_id相同
             if z_struct.shape[0] < structural_data.global_n_id.shape[0]:
                 pad_len = structural_data.global_n_id.shape[0] - z_struct.shape[0]
                 z_struct = F.pad(z_struct, (0, 0, 0, pad_len), "constant", 0)
+            if structural_data.root_nodes_mask.max() >= z_struct.shape[0]:
+                print(f"x_temporal shape: {x_temporal.shape}")
+                print(f"Max index in root_nodes_mask: {structural_data.root_nodes_mask.max().item()}")
+                print(f"z_struct shape: {z_struct.shape}")
+                raise ValueError("The root_nodes_mask contains indices out of bounds for z_struct.")
             aligned_z_struct = z_struct[structural_data.root_nodes_mask]
-            
-            x_temporal = self.norm_temporal(x_temporal)
-            aligned_z_struct = self.norm_struct(aligned_z_struct)
-
+             # 🆕 使用动态对齐层
+            # target_batch_size = x_temporal.shape[0]
+            # aligned_z_struct = self.dynamic_alignment(z_struct, target_batch_size)
             final_x = torch.cat([x_temporal, aligned_z_struct], dim=1)
             final_x = self.fusion_layer(final_x)
         else:
@@ -1486,9 +1520,8 @@ class HeteroSTHN_Interface_rgfm(nn.Module):
         if final_x is None:
             raise ValueError("No features were generated. Check your model's feature dimension settings.")
 
-        # --- 步骤4: 使用最终特征进行预测 --
-        pred_edge_types = model_inputs[-1]
-        pred_pos, pred_neg = self.edge_predictor(final_x, neg_samples=neg_samples, pred_edge_types=pred_edge_types)
+        # --- 步骤4: 使用最终特征进行预测 ---
+        pred_pos, pred_neg = self.edge_predictor(final_x, neg_samples=neg_samples, edge_types=edge_types)
         return pred_pos, pred_neg
     
         

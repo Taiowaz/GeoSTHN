@@ -202,18 +202,17 @@ def construct_mini_batch_giant_graph(all_graphs, max_num_edges):
         "col": all_cols,
         # 所有边的原始ID数组，保持原始图中的边标识符
         "eid": all_eids,
-        # 边时间差数组，计算为all_dts[all_cols] - all_dts[all_rows]，表示每条边两端节点的时间差
+        # 边时间差数组，计算为all_dts[all_cols] - all_dts[all_rows]，表示每条边两端节点的时间差，目标节点时间差 - 源节点时间差
         "edts": all_dts[all_cols] - all_dts[all_rows],
-        # 节点指针数组，标记每个子图在合并后图中的节点范围
+        # 节点指针数组，用于标识 Batch 中每个子图的节点在 nodes 数组中的起止位置。
         "all_node_indptr": all_node_indptr,
-        # 边指针数组，标记每个子图在合并后图中的边范围
+        # 边指针数组，标记每个子图在合并后图中的边范围，类似于 CSR 矩阵的 indptr，用于标识 Batch 中每个子图的边在 row、col 等数组中的起止位置。例如，第 $i$ 个子图的边存储在索引 all_edge_indptr[i] 到 all_edge_indptr[i+1] 之间。
         "all_edge_indptr": all_edge_indptr,
         # for nodes
         # 所有节点的原始ID数组，来自各个子图的节点，除根节点外包括相关的节点
         "nodes": all_nodes,
         # 所有节点的时间差数组，相对于各自根节点的时间差
         "dts": all_dts,
-        # general information
         # 合并后图的总节点数
         "all_num_nodes": cumsum_nodes,
         # 合并后图的总边数

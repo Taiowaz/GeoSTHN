@@ -84,21 +84,12 @@ def main(args):
         logging.info(f">>>>> Run: {run_idx} <<<<<")
         start_run = timeit.default_timer()
 
-        # set the seed for deterministic results...
         torch.manual_seed(run_idx + args.seed)
         set_random_seed(run_idx + args.seed)
 
-        # define an early stopper
         save_model_dir = checkpoint_dir
         save_model_id = f"{args.dataset}_{args.seed}_{run_idx}"
-        # early_stopper = EarlyStopMonitor(save_model_dir=save_model_dir, save_model_id=save_model_id,
-        #                                 tolerance=TOLERANCE, patience=PATIENCE)
 
-        # ==================================================== Train & Validation
-        # loading the validation negative samples
-
-        # Link prediction
-        start_val = timeit.default_timer()
         logging.info("Train link prediction task from scratch ...")
         logging.info("加载模型...")
         model, args, link_pred_train = load_model(args)
@@ -125,39 +116,10 @@ def main(args):
             f"模型已保存到: {os.path.join(save_model_dir, f'{save_model_id}.pt')}"
         )
 
-        dataset.load_val_ns()
         args.output_dir = output_dir + f"/run_{run_idx}"
         os.makedirs(args.output_dir, exist_ok=True)
-        # Validation ...
-        (
-            perf_mrr_val_mean,
-            perf_mrr_val_std,
-            perf_list_val,
-            auroc_val,
-            auprc_val,
-        ) = test(
-            "val",
-            model.to(args.device),
-            args,
-            metric,
-            neg_sampler,
-            g,
-            df,
-            node_feats,
-            edge_feats,
-        )
-        end_val = timeit.default_timer()
-
-        logging.info(f"val: Evaluation Setting: >>> ONE-VS-MANY <<< ")
-        logging.info(
-            f"\tval: {metric}: {perf_mrr_val_mean: .4f} ± {perf_mrr_val_std: .4f}"
-        )
-        logging.info(f"\tval: AUROC: {auroc_val: .4f} | AUPRC: {auprc_val: .4f}")
-        val_time = timeit.default_timer() - start_val
-        logging.info(f"\tval: Elapsed Time (s): {val_time: .4f}")
 
         dataset.load_test_ns()
-        # testing ...
         start_test = timeit.default_timer()
         (
             perf_mrr_test_mean,
@@ -192,14 +154,10 @@ def main(args):
                 "data": args.dataset,
                 "run": run_idx,
                 "seed": args.seed,
-                f"val {metric}": f"{perf_mrr_val_mean: .4f}  +- {perf_mrr_val_std: .4f}",
-                "val auroc": f"{auroc_val: .4f}",
-                "val auprc": f"{auprc_val: .4f}",
                 f"test {metric}": f"{perf_mrr_test_mean: .4f} +- {perf_mrr_test_std: .4f}",
                 "test auroc": f"{auroc_test: .4f}",
                 "test auprc": f"{auprc_test: .4f}",
                 "test_time": test_time,
-                "tot_train_val_time": val_time,
             },
             result_filename,
         )

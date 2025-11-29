@@ -31,6 +31,7 @@ class EuclideanEncoder(nn.Module):
             num_nodes = x.shape[0]
             
             # 使用 scatter_sum 进行聚合，保持与 ManifoldEncoder 一致的行为
+            # !!! 这里改变了形状, 将信息归因到src上，因此长度变成了src的最大值+1
             support_t = scatter_sum(x[dst], src, dim=0)
             # 简单的归一化
             return support_t

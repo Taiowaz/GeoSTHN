@@ -63,8 +63,13 @@ def get_inputs_for_ind(
 
     if args.use_riemannian_structure:
         structural_data = create_riemannian_data_snapshot(
-            subgraph_data,
-            args
+            nodes=subgraph_data["nodes"],
+            row=subgraph_data["row"],
+            col=subgraph_data["col"],
+            root_nodes=subgraph_data["root_nodes"],
+            embed_dim=args.rgfm_embed_dim,
+            device=args.device,
+            dataset_name=args.dataset,
         )
     else:
         structural_data = None
@@ -112,7 +117,6 @@ def get_inputs_for_ind(
             subgraph_edts.to(args.device),
             len(has_temporal_neighbors),
             torch.tensor(all_inds).long(),
-            torch.from_numpy(elabel[ind]).to(args.device),
         ]
     else:
         subgraph_edge_type = elabel[ind]
@@ -123,6 +127,7 @@ def get_inputs_for_ind(
             torch.tensor(all_inds).long(),
             torch.from_numpy(subgraph_edge_type).to(args.device),
         ]
+
     return inputs, subgraph_node_feats, cur_inds, structural_data
 
 
@@ -224,10 +229,7 @@ def run(
 
 def link_pred_train(model, args, g, df, node_feats, edge_feats):
 
-    # optimizer = torch.optim.RMSprop(
-    #     model.parameters(), lr=args.lr, weight_decay=args.weight_decay
-    # )
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.RMSprop(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
     ###################################################
@@ -962,28 +964,121 @@ def get_eigen_tokens_tensor(edge_index, num_nodes, embed_dim, device):
 
     return eigvecs
 
+
+# def create_riemannian_data_snapshot(nodes: list, row: list, col: list, root_nodes: list, embed_dim: int, device: torch.device):
+#     """
+#     根据批次信息构建输入的Data对象。(修复版：确保输出能正确映射回root_nodes)
+#     """
+#     # 🆕 核心修复：保持root_nodes的原始顺序，将历史交互节点追加到后面
+#     # 这样确保前len(root_nodes)个节点就是我们需要的批次节点
+
+#     # 1. 先获取root_nodes中的唯一节点，保持原始顺序
+#     root_nodes_unique = []
+#     root_nodes_seen = set()
+#     for node in root_nodes:
+#         if node not in root_nodes_seen:
+#             root_nodes_unique.append(node)
+#             root_nodes_seen.add(node)
+
+#     # 2. 添加历史交互节点（但排除已经在root_nodes中的节点）
+#     additional_nodes = [node for node in nodes if node not in root_nodes_seen]
+
+#     # 3. 最终的节点顺序：root_nodes的唯一节点在前，历史节点在后
+#     snapshot_global_nodes = root_nodes_unique + additional_nodes
+#     snapshot_global_to_local_map = {global_id: i for i, global_id in enumerate(snapshot_global_nodes)}
+
+#     # 4. 构建原始nodes到新索引的映射
+#     old_local_to_new_local_map = {}
+#     for old_idx, global_id in enumerate(nodes):
+#         if global_id in snapshot_global_to_local_map:
+#             old_local_to_new_local_map[old_idx] = snapshot_global_to_local_map[global_id]
+
+#     num_snapshot_nodes = len(snapshot_global_nodes)
+
+#     # 5. 构建边索引
+#     if len(row) > 0 and len(col) > 0:
+#         valid_edges = []
+#         for r, c in zip(row, col):
+#             if r in old_local_to_new_local_map and c in old_local_to_new_local_map:
+#                 valid_edges.append((old_local_to_new_local_map[r], old_local_to_new_local_map[c]))
+
+#         if valid_edges:
+#             new_row, new_col = zip(*valid_edges)
+#             edge_index = torch.tensor([new_row, new_col], dtype=torch.long, device=device)
+#         else:
+#             edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+#     else:
+#         edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+
+#     snapshot_data = Data(num_nodes=num_snapshot_nodes, edge_index=edge_index)
+
+#     # 计算拉普拉斯特征向量
+#     eigvecs = get_eigen_tokens_tensor(snapshot_data.edge_index, snapshot_data.num_nodes, embed_dim, device)
+#     snapshot_data._eigvecs = eigvecs
+#     snapshot_data.tokens = lambda idx: snapshot_data._eigvecs[idx]
+#     snapshot_data.x = snapshot_data.tokens(torch.arange(snapshot_data.num_nodes, device=device))
+
+#     # BFS树构建逻辑保持不变
+#     G = to_networkx(snapshot_data, to_undirected=True)
+#     tree_list = []
+#     for i in range(snapshot_data.num_nodes):
+#         bfs_edges = list(nx.bfs_tree(G, i).edges())
+#         if not bfs_edges:
+#             tree_edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+#         else:
+#             src_nodes = [edge[0] for edge in bfs_edges]
+#             dst_nodes = [edge[1] for edge in bfs_edges]
+#             tree_edge_index = torch.tensor([src_nodes, dst_nodes], dtype=torch.long, device=device)
+
+#         tree_data = Data(
+#             edge_index=tree_edge_index,
+#             num_nodes=num_snapshot_nodes,
+#             x=torch.zeros(num_snapshot_nodes, eigvecs.shape[1], device=device)
+#         )
+#         tree_list.append(tree_data)
+
+#     snapshot_data.batch_tree = Batch.from_data_list(tree_list)
+
+#     # 🆕 关键修复：建立root_nodes到输出索引的直接映射
+#     snapshot_data.global_n_id = torch.tensor(snapshot_global_nodes, dtype=torch.long, device=device)
+
+#     # 🆕 重要：root_nodes_mask现在直接对应原始root_nodes的顺序
+#     # 因为我们把root_nodes放在了snapshot_global_nodes的前面
+#     root_nodes_local_indices = []
+#     for gid in root_nodes:
+#         # 由于我们的设计，root_nodes中的每个节点都能在snapshot_global_to_local_map中找到
+#         root_nodes_local_indices.append(snapshot_global_to_local_map[gid])
+
+#     snapshot_data.root_nodes_mask = torch.tensor(root_nodes_local_indices, dtype=torch.long, device=device)
+#     snapshot_data.n_id = torch.arange(snapshot_data.num_nodes, device=device)
+
+#     # 🆕 添加批次信息，方便模型使用
+#     snapshot_data.num_root_nodes = len(root_nodes)
+#     snapshot_data.num_unique_root_nodes = len(root_nodes_unique)
+
+#     return snapshot_data.to(device)
+
+
 def create_riemannian_data_snapshot(
-    subgraph_data, args
+    nodes: list,
+    row: list,
+    col: list,
+    root_nodes: list,
+    embed_dim: int,
+    device: torch.device,
+    # 🆕 关键修改 1: 添加 dataset_name 参数
+    dataset_name: str,
 ):
     """
     根据批次信息构建输入的Data对象。
     (最终版：增加了针对特定数据集的星型图采样逻辑)
     """
-    nodes=subgraph_data["nodes"]
-    row=subgraph_data["row"]
-    col=subgraph_data["col"]
-    root_nodes=subgraph_data["root_nodes"]
-    embed_dim=args.rgfm_embed_dim
-    device=args.device
-    dataset_name=args.dataset
+
     # --- Part 1: (不变) 合并节点并创建新的映射与图结构 ---
-    # 批次内所有节点的全局ID集合
     snapshot_global_nodes = sorted(list(set(nodes) | set(root_nodes)))
-    # 全局ID到局部索引的映射, 
     snapshot_global_to_local_map = {
         global_id: i for i, global_id in enumerate(snapshot_global_nodes)
     }
-    # 对于批次内nodes中的每个节点，找到其在新快照中的局部索引，构建映射
     old_local_to_new_local_map = {
         old_idx: snapshot_global_to_local_map.get(global_id)
         for old_idx, global_id in enumerate(nodes)
@@ -1010,12 +1105,10 @@ def create_riemannian_data_snapshot(
     snapshot_data = Data(num_nodes=num_snapshot_nodes, edge_index=edge_index)
 
     # --- Part 2: (不变) 计算拉普拉斯特征并创建 'tokens' 方法 ---
-    # 为每个节点创建一个基于拉普拉斯特征的嵌入向量
     eigvecs = get_eigen_tokens_tensor(
         snapshot_data.edge_index, snapshot_data.num_nodes, embed_dim, device
     )
     snapshot_data._eigvecs = eigvecs
-    # 定义一个方法，根据节点的局部索引返回其对应的拉普拉斯特征向量
     snapshot_data.tokens = lambda idx: snapshot_data._eigvecs[idx]
     snapshot_data.x = snapshot_data.tokens(
         torch.arange(snapshot_data.num_nodes, device=device)
@@ -1072,24 +1165,18 @@ def create_riemannian_data_snapshot(
             )
 
     # --- Part 5: (不变) 存储ID和掩码 ---
-    # 节点的全局ID记录
     snapshot_data.global_n_id = torch.tensor(
         snapshot_global_nodes, dtype=torch.long, device=device
     )
-    # 根节点在新快照中的局部索引
     root_nodes_local_indices = [
         snapshot_global_to_local_map.get(gid)
         for gid in root_nodes
         if gid in snapshot_global_to_local_map
     ]
-    # 根节点在新快照中的局部索引
     snapshot_data.root_nodes_mask = torch.tensor(
         root_nodes_local_indices, dtype=torch.long, device=device
     )
-    # 图中非孤立点的局部索引,num_nodes有问题
     snapshot_data.n_id = torch.arange(snapshot_data.num_nodes, device=device)
-    # 构建一个当前批次节点索引对应于全局节点ID的映射张量
-
 
     return snapshot_data.to(device)
 
