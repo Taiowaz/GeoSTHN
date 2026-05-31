@@ -1379,7 +1379,7 @@ if __name__ == "__main__":
     # """
     # clean rows for un trade dataset
     # """
-    # fname = "/mnt/c/Users/sheny/Desktop/TGB/tgb/datasets/un_trade/un_trade.csv"
-    # outname = "/mnt/c/Users/sheny/Desktop/TGB/tgb/datasets/un_trade/un_trade_cleaned.csv"
+    # fname = "datasets/un_trade/un_trade.csv"
+    # outname = "datasets/un_trade/un_trade_cleaned.csv"
     # clean_rows(fname, outname)
     print("hi")

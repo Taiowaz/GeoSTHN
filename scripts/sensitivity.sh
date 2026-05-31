@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # 基础配置
-python_exec="/home/handb/.conda/envs/geosthn/bin/python"
-main_file="/home/handb/GeoSTHN/src/main.py"
-# dataset="thgl-github-subset"
-# dataset="thgl-myket-subset"
-dataset="thgl-forum-subset"
+python_exec="${PYTHON:-python}"
+main_file="${RUN_FILE:-src/main.py}"
+# dataset="thgl-github"
+# dataset="thgl-myket"
+dataset="thgl-forum"
 common_args="--use_graph_structure --model hetero_sthn --use_cached_subgraph --use_riemannian_structure --use_gpu 0 --num_run 1 --num_epoch 1 --device 1"
 
 target_features=("rgfm_embed_dim" "window_size" "structure_time_gap")

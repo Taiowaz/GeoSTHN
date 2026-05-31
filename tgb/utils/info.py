@@ -65,13 +65,9 @@ DATA_VERSION_DICT = {
     "tkgl-wikidata": 1,
     "tkgl-smallpedia": 1,
     "thgl-myket": 1,
-    "thgl-myket-subset": 1,
     "thgl-github": 1,
-    "thgl-github-subset": 1,
     "thgl-forum": 1,
-    "thgl-forum-subset": 1,
     "thgl-software": 1,
-    "thgl-software-subset": 1,
 }
 
 
@@ -89,13 +85,9 @@ DATA_EVAL_METRIC_DICT = {
     "tkgl-smallpedia": "mrr",
     "tkgl-icews": "mrr",
     "thgl-myket": "mrr",
-    "thgl-myket-subset": "mrr",
     "thgl-github": "mrr",
-    "thgl-github-subset": "mrr",
     "thgl-forum": "mrr",
-    "thgl-forum-subset": "mrr",
     "thgl-software": "mrr",
-    "thgl-software-subset": "mrr",
     "tgbn-trade": "ndcg",
     "tgbn-genre": "ndcg",
     "tgbn-reddit": "ndcg",
@@ -116,13 +108,9 @@ DATA_NS_STRATEGY_DICT = {
     "tkgl-smallpedia": "time-filtered",
     "tkgl-icews": "time-filtered",
     "thgl-myket": "node-type-filtered",
-    "thgl-myket-subset": "node-type-filtered",
     "thgl-github": "node-type-filtered",
-    "thgl-github-subset": "node-type-filtered",
     "thgl-forum": "node-type-filtered",
-    "thgl-forum-subset": "node-type-filtered",
     "thgl-software": "node-type-filtered",
-    "thgl-software-subset": "node-type-filtered",
 }
 
 

@@ -114,7 +114,7 @@ def write2csv(outname: str,
                 writer.writerow(row)
 
 
-def extract_subset(fname, outname, start_year=2000, end_year=2024):
+def extract_time_window(fname, outname, start_year=2000, end_year=2024):
     node_dict = {}
     first_row = True
     rel_type = {}
@@ -149,7 +149,7 @@ def extract_subset(fname, outname, start_year=2000, end_year=2024):
     return node_dict
 
 
-def extract_subset_nodeid(fname, outname, start_year=2000, end_year=2024, max_id=1000000):
+def extract_by_nodeid_and_time(fname, outname, start_year=2000, end_year=2024, max_id=1000000):
     node_dict = {}
     first_row = True
     rel_type = {}
@@ -190,7 +190,7 @@ def extract_subset_nodeid(fname, outname, start_year=2000, end_year=2024, max_id
 
 
 
-def extract_static_subset(fname, outname, node_dict, max_id=1000000):
+def extract_static_edges(fname, outname, node_dict, max_id=1000000):
     r"""
     extract static edges based a given node dict
     """
@@ -236,7 +236,7 @@ def extract_static_subset(fname, outname, node_dict, max_id=1000000):
 
 
 #! not used, filter by top edgetypes 
-def subset_static_edges(fname, outname, rel_type, topk=10):
+def filter_static_edges(fname, outname, rel_type, topk=10):
     #* select edges based on frequency
     import operator
     sorted_x = sorted(rel_type.items(), key=operator.itemgetter(1))
@@ -304,19 +304,19 @@ def main():
     start_year=1900#1700
     end_year=2024#1800
     max_id=1000000
-    # node_dict = extract_subset(inputfile, outname, start_year=start_year, end_year=end_year)
-    node_dict = extract_subset_nodeid(inputfile, outname, start_year=start_year, end_year=end_year, max_id=max_id)
+    # node_dict = extract_time_window(inputfile, outname, start_year=start_year, end_year=end_year)
+    node_dict = extract_by_nodeid_and_time(inputfile, outname, start_year=start_year, end_year=end_year, max_id=max_id)
     print ("there are ",len(node_dict), " nodes")
 
     inputfile = "tkgl-wikidata_static_edgelist.csv"
     outname = "tkgl-smallpedia_static_edgelist.csv"
-    rel_type = extract_static_subset(inputfile, outname, node_dict, max_id=max_id)
+    rel_type = extract_static_edges(inputfile, outname, node_dict, max_id=max_id)
 
     #! not used
     # inputfile = "tkgl-smallpedia_static_edgelist.csv"
     # outname = "tkgl-smallpedia_static_edgelist_top10.csv"
     # topk=10
-    # subset_static_edges(inputfile, outname, rel_type, topk=topk)
+    # filter_static_edges(inputfile, outname, rel_type, topk=topk)
     
 
 

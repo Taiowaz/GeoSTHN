@@ -85,7 +85,7 @@ class SphericalStructureLearner(nn.Module):
         super(SphericalStructureLearner, self).__init__()
         self.manifold_H = manifold_H
         self.manifold_S = manifold_S
-        self.attention_subset = CrossManifoldAttention(manifold_H, manifold_S, in_dim, hidden_dim, out_dim, dropout)
+        self.cross_attention = CrossManifoldAttention(manifold_H, manifold_S, in_dim, hidden_dim, out_dim, dropout)
         self.res_lin = nn.Linear(out_dim, out_dim)
 
     def forward(self, x_H, x_S, data):
@@ -96,7 +96,7 @@ class SphericalStructureLearner(nn.Module):
         :return: New sphere representation of nodes.
         """
         att_index = data.edge_index
-        x = self.attention_subset(x_H, x_S, x_S, edge_index=att_index)
+        x = self.cross_attention(x_H, x_S, x_S, edge_index=att_index)
         z_S = self.manifold_S.expmap(x, self.manifold_S.proju(x, self.res_lin(x_S)))
         return z_S
 

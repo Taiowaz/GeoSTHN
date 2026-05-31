@@ -449,8 +449,8 @@ def sort_edgelist(fname, outname="sorted_lastfm_edgelist.csv"):
 
 if __name__ == "__main__":
     #! generate the list of genres by frequency
-    # get_genre_list("/mnt/c/Users/sheny/Desktop/TGB/tgb/datasets/lastfmGenre/dataset.csv")
-    # genre_dict = load_genre_dict("/mnt/c/Users/sheny/Desktop/TGB/tgb/datasets/lastfmGenre/genre_list.csv")
+    # get_genre_list("datasets/lastfmGenre/dataset.csv")
+    # genre_dict = load_genre_dict("datasets/lastfmGenre/genre_list.csv")
 
     #! find similar genres
     # find_unique_genres("genre_list_1000.csv",threshold= 0.8)
@@ -462,8 +462,8 @@ if __name__ == "__main__":
     #! generate the daily node labels
     # generate_daily_node_labels("lastfm_edgelist_clean.csv")
 
-    # generate_daily_node_labels("/mnt/c/Users/sheny/Desktop/TGB/tgb/datasets/lastfmGenre/dataset.csv")
-    # load_node_labels("/mnt/c/Users/sheny/Desktop/TGB/tgb/datasets/lastfmGenre/daily_labels.csv")
+    # generate_daily_node_labels("datasets/lastfmGenre/dataset.csv")
+    # load_node_labels("datasets/lastfmGenre/daily_labels.csv")
 
     # #! generate normalized weekly node labels
     # generate_aggregate_labels("daily_labels.csv", days=7)\

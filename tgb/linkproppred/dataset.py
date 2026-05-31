@@ -338,20 +338,12 @@ class LinkPropPredDataset(object):
                 self._node_id = node_ids
             elif self.name == "thgl-myket":
                 df, edge_feat, node_ids = csv_to_thg_data(self.meta_dict["fname"])
-            elif self.name == "thgl-myket-subset":
-                df, edge_feat, node_ids = csv_to_thg_data(self.meta_dict["fname"])
             elif self.name == "thgl-github":
                 df, edge_feat, node_ids = csv_to_thg_data(self.meta_dict["fname"])
             elif self.name == "thgl-forum":
                 df, edge_feat, node_ids = csv_to_forum_data(self.meta_dict["fname"])
             elif self.name == "thgl-software":
                 df, edge_feat, node_ids = csv_to_thg_data(self.meta_dict["fname"])
-            elif self.name == "thgl-software-subset":
-                df, edge_feat, node_ids = csv_to_thg_data(self.meta_dict["fname"])
-            elif self.name == "thgl-github-subset":
-                df, edge_feat, node_ids = csv_to_thg_data(self.meta_dict["fname"])
-            elif self.name == "thgl-forum-subset":
-                df, edge_feat, node_ids = csv_to_forum_data(self.meta_dict["fname"])
             else:
                 raise ValueError(f"Dataset {self.name} not found.")
 

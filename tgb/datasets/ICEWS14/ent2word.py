@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-# @Time    : 2019/12/5 4:20 下午
-# @Author  : Lee_zix
-# @Email   : Lee_zix@163.com
-# @File    : ent2word.py.py
-# @Software: PyCharm
 
 import os
 

@@ -1,6 +1,6 @@
 export CUDA_LAUNCH_BLOCKING=1
-run_python="/home/handb/.conda/envs/geosthn/bin/python"
-run_file="/home/handb/GeoSTHN/src/main.py"
+run_python="${PYTHON:-python}"
+run_file="${RUN_FILE:-src/main.py}"
 
 exper_name=$(basename "$0" .sh)
 common_args="
@@ -11,7 +11,7 @@ common_args="
 "
 
 
-# dataset="thgl-forum-subset"
+# dataset="thgl-forum"
 # nohup $run_python $run_file \
 #     --exper_name ${exper_name} \
 #     --dataset ${dataset} \
@@ -21,7 +21,7 @@ common_args="
 # echo $! > run_log/run_${dataset}.pid
 # 
 
-dataset="thgl-github-subset"
+dataset="thgl-github"
 nohup $run_python $run_file \
     --exper_name ${exper_name} \
     --dataset ${dataset} \
@@ -31,7 +31,7 @@ nohup $run_python $run_file \
 echo $! > run_log/run_${dataset}.pid
 
 
-# dataset="thgl-myket-subset"
+# dataset="thgl-myket"
 # nohup $run_python $run_file \
 #     --exper_name ${exper_name} \
 #     --dataset ${dataset} \
@@ -40,7 +40,7 @@ echo $! > run_log/run_${dataset}.pid
 #     --device 1 > run_log/run_${dataset}.log 2>&1 &
 # echo $! > run_log/run_${dataset}.pid
 
-# dataset="thgl-software-subset"
+# dataset="thgl-software"
 # nohup $run_python $run_file \
 #     --exper_name $exper_name \
 #     --dataset $dataset \
@@ -52,7 +52,7 @@ echo $! > run_log/run_${dataset}.pid
 
 # 测试
 
-# dataset="thgl-software-subset"
+# dataset="thgl-software"
 # $run_python $run_file \
 #     --exper_name ${exper_name} \
 #     --dataset ${dataset} \

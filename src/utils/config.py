@@ -5,7 +5,7 @@ import os
 def get_args(args=None):
     parser = argparse.ArgumentParser()
     # experiments
-    parser.add_argument("--exper_name", type=str, default="thgl-forum-subset-debug")
+    parser.add_argument("--exper_name", type=str, default="thgl-forum-debug")
     parser.add_argument("--exper_base_dir", type=str, default="exper")
     parser.add_argument("--num_epoch", type=int, default=100)
     parser.add_argument("--seed", type=int, help="Random seed", default=1)
@@ -14,7 +14,7 @@ def get_args(args=None):
     )
 
     # basic
-    parser.add_argument("--dataset", type=str, default="thgl-forum-subset")
+    parser.add_argument("--dataset", type=str, default="thgl-forum")
     parser.add_argument("--istrain", type=int, default=1)
     parser.add_argument("--data_dir", type=str, default="DATA")
     parser.add_argument("--test_num_neg", type=int, default=20)

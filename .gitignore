@@ -3,9 +3,10 @@
 
 # Analysis and temporary files
 analyze
-exper/*
+exper/
+run_log/
 temp
-tgb/DATA*/*
+tgb/DATA*/
 tmp/
 graph_test
 
@@ -17,11 +18,19 @@ graph_test
 # Build files
 build
 dist
-LLM_CDHG.egg-info
+*.egg-info/
 *.so
+*.zip
 
 # Python files
 __pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
 
 *.png
 *.pkl

@@ -1095,7 +1095,7 @@ def create_riemannian_data_snapshot(
     snapshot_data.batch_tree = Batch.from_data_list(tree_list)
 
     # --- 🆕 关键修改 2: 针对性地采样新的结构词汇：星型图 ---
-    if dataset_name in ["thgl-github-subset", "thgl-software-subset"]:
+    if dataset_name in ["thgl-github", "thgl-software"]:
         star_list = []
         # 识别Hub节点 (例如，选择度数最高的前10%的节点)
         degrees = sorted(G_undirected.degree(), key=lambda x: x[1], reverse=True)

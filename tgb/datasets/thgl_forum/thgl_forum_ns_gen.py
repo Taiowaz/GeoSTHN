@@ -16,7 +16,7 @@ def main():
 
 
     name = "thgl-forum"
-    dataset = PyGLinkPropPredDataset(name=name, root="datasets")
+    dataset = PyGLinkPropPredDataset(name=name, root="DATA")
     train_mask = dataset.train_mask
     val_mask = dataset.val_mask
     test_mask = dataset.test_mask
@@ -45,7 +45,7 @@ def main():
 
    
     # generate evaluation set
-    partial_path = "."
+    partial_path = dataset.dataset.root
     # generate validation negative edge set
     start_time = time.time()
     split_mode = "val"
