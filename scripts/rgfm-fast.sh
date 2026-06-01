@@ -10,7 +10,7 @@ common_args="
     --use_cached_subgraph
     --batch_size 70
 "
-# 禁用onehot特征,禁用use_cached_subgraph
+
 # common_args="
 #     --use_graph_structure
 #     --model hetero_sthn
@@ -58,7 +58,7 @@ nohup $run_python $run_file \
 echo $! > run_log/run_${dataset}_fast.pid
 
 
-# 测试
+
 
 # dataset="thgl-software"
 # $run_python $run_file \

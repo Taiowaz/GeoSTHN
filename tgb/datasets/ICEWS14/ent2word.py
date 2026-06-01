@@ -5,7 +5,7 @@ import os
 def load_index(input_path):
     index, rev_index = {}, {}
     with open(input_path) as f:
-        for i, line in enumerate(f.readlines()):        # relaions.dict和entities.dict中的id都是按顺序排列的
+        for i, line in enumerate(f.readlines()):
             rel, id = line.strip().split("\t")
             index[rel] = id
             rev_index[id] = rel
@@ -56,8 +56,8 @@ for id in range(len(id2entity.keys())):
         end = entity_str.find(')')
         w1 = entity_str[:begin].strip()
         w2 = entity_str[begin+1: end]
-        eid2wid.append([str(entity2id[entity_str]), "0", str(word2id[w1])])   # isA关系
-        eid2wid.append([str(entity2id[entity_str]), "1", str(word2id[w2])])     # 隶属关系
+        eid2wid.append([str(entity2id[entity_str]), "0", str(word2id[w1])])
+        eid2wid.append([str(entity2id[entity_str]), "1", str(word2id[w2])])
     else:
         eid2wid.append([str(entity2id[entity_str]), "2", str(word2id[entity_str])])
 

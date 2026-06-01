@@ -25,15 +25,15 @@ class EuclideanEncoder(nn.Module):
         x = self.activation(self.lin(x))
         x = self.proj(F.dropout(x, p=self.drop, training=self.training))
         
-        # 🔧 如果提供了 edge_index，进行图聚合以匹配 ManifoldEncoder 的行为
+
         if edge_index is not None:
             src, dst = edge_index[0], edge_index[1]
             num_nodes = x.shape[0]
             
-            # 使用 scatter_sum 进行聚合，保持与 ManifoldEncoder 一致的行为
-            # !!! 这里改变了形状, 将信息归因到src上，因此长度变成了src的最大值+1
+
+
             support_t = scatter_sum(x[dst], src, dim=0)
-            # 简单的归一化
+
             return support_t
         else:
             return x

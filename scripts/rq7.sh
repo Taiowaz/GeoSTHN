@@ -51,7 +51,7 @@ echo $! > run_log/run_${dataset}.pid
 # echo $! > run_log/run_${dataset}.pid
 
 
-# 测试
+
 
 # dataset="thgl-software"
 # $run_python $run_file \

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 基础配置
+
 python_exec="${PYTHON:-python}"
 main_file="${RUN_FILE:-src/main.py}"
 # dataset="thgl-github"
@@ -10,9 +10,9 @@ common_args="--use_graph_structure --model hetero_sthn --use_cached_subgraph --u
 
 target_features=("rgfm_embed_dim" "window_size" "structure_time_gap")
 
-echo "🚀 开始全量参数敏感性分析..."
+echo "Starting full parameter sensitivity analysis..."
 for feature in "${target_features[@]}"; do
-    # 根据特征选择对应的数值列表
+
     if [ "$feature" == "rgfm_embed_dim" ]; then
         nums=(8 16 32 64 128)
     elif [ "$feature" == "window_size" ]; then
@@ -23,20 +23,20 @@ for feature in "${target_features[@]}"; do
 
 
     echo "========================================================"
-    echo "👉 当前分析特征: ${feature}, 测试数值: [${nums[*]}]"
+    echo "Current feature: ${feature}; values: [${nums[*]}]"
     echo "========================================================"
-    echo "🚀 开始参数敏感性分析：属性${feature}测试数值 [${nums[*]}]"
+    echo "Starting sensitivity analysis for ${feature}; values: [${nums[*]}]"
 
     for num in "${nums[@]}"; do
-        # 为每个维度创建一个独立的实验文件夹
+
         exper_name="sensitivity_${feature}_${num}"
-        mkdir -p "./exper/${exper_name}"  # <--- 修正了这里，从 osmkdir 改为 mkdir
+        mkdir -p "./exper/${exper_name}"
 
         echo "------------------------------------------------"
         echo "▶️ Running Dimension: ${num} (Experiment: ${exper_name})"
         echo "------------------------------------------------"
 
-        # 这里的命令会阻塞，直到 python 程序运行结束才会进入下一次循环
+
         $python_exec $main_file \
             --exper_name ${exper_name} \
             --dataset ${dataset} \
@@ -48,4 +48,4 @@ for feature in "${target_features[@]}"; do
 
 done
 
-echo "🎉 所有实验运行完毕！"
+echo "All experiments completed."

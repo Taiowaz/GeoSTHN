@@ -30,10 +30,10 @@ def row_norm(adj_t):
 
 def evaluate_mrr(pred, neg_samples):
     metric = "mrr"
-    # 计算每组的样本数量
+
     split = len(pred) // (neg_samples + 1)
 
-    # 划分正样本和负样本
+
     num_groups = neg_samples + 1
     y_pred_pos_list = []
     y_pred_neg_list = []
@@ -55,6 +55,6 @@ def evaluate_mrr(pred, neg_samples):
         metric_value = evaluator.eval(input_dict)[metric]
         metric_values.append(metric_value)
 
-    # 计算平均指标值
+
     average_metric = np.mean(metric_values)
     return average_metric

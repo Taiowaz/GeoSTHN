@@ -48,7 +48,7 @@ echo $! > run_log/run_${dataset}_abl.pid
 # echo $! > run_log/run_${dataset}_abl.pid
 
 
-# 测试
+
 
 # dataset="thgl-software"
 # $run_python $run_file \

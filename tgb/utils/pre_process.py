@@ -1216,32 +1216,20 @@ def clean_rows(
         outname: the path to the cleaned data
     """
 
-    outf = open(outname, "w")
-
-    with open(fname) as f:
-        s = next(f)
-        outf.write(s)
-        for idx, line in enumerate(f):
-            strs = ["China, Taiwan Province of", "China, mainland"]
-            for str in strs:
-                line = line.replace(
-                    "China, Taiwan Province of", "Taiwan Province of China"
-                )
-                line = line.replace("China, mainland", "China mainland")
-                line = line.replace("China, Hong Kong SAR", "China Hong Kong SAR")
-                line = line.replace("China, Macao SAR", "China Macao SAR")
-                line = line.replace(
-                    "Saint Helena, Ascension and Tristan da Cunha",
-                    "Saint Helena Ascension and Tristan da Cunha",
-                )
-
-            e = line.strip().split(",")
-            if len(e) > 4:
-                print(e)
-                raise ValueError("line has more than 4 elements")
-            outf.write(line)
-
-    outf.close()
+    with open(fname, newline="") as infile, open(outname, "w", newline="") as outfile:
+        reader = csv.reader(infile)
+        writer = csv.writer(outfile)
+        header = next(reader)
+        writer.writerow(header)
+        for row in reader:
+            if len(row) <= 4:
+                writer.writerow(row)
+                continue
+            if len(row) == 5:
+                row = [row[0], row[1].replace(",", " "), row[2], row[3], row[4]]
+            else:
+                row = [row[0], " ".join(row[1:-2]), row[-2], row[-1]]
+            writer.writerow(row)
 
 
 """
